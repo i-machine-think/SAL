@@ -56,8 +56,8 @@ class Evaluator(object):
             # Evaluation
             seqlist = other['sequence']
 
-            match_per_seq = torch.zeros(seqlist[0].data.shape[0]).type(torch.FloatTensor)
-            total_per_seq = torch.zeros(seqlist[0].data.shape[0]).type(torch.FloatTensor)
+            match_per_seq = torch.zeros(batch.batch_size).type(torch.FloatTensor)
+            total_per_seq = torch.zeros(batch.batch_size).type(torch.FloatTensor)
 
             for step, step_output in enumerate(decoder_outputs):
                 target = target_variables[:, step + 1]
