@@ -18,7 +18,7 @@ class Evaluator(object):
         self.loss = loss
         self.batch_size = batch_size
 
-    def evaluate(self, model, data, seq_total=None):
+    def evaluate(self, model, data):
         """ Evaluate a model on given dataset and return performance.
 
         Args:
@@ -55,11 +55,6 @@ class Evaluator(object):
 
             # Evaluation
             seqlist = other['sequence']
-
-            #seqstack = torch.stack(seqlist).squeeze().transpose(0,1)
-            #non_padding = target_variables[:1:].ne(pad)
-            #correct2 = seqstack.eq(target_variables[:,1:].masked_select(non_padding).sum().data[0])
-            #print(correct2)
 
             match_per_seq = torch.zeros(seqlist[0].data.shape[0]).type(torch.FloatTensor)
             total_per_seq = torch.zeros(seqlist[0].data.shape[0]).type(torch.FloatTensor)
