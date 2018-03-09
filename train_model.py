@@ -149,6 +149,10 @@ else:
 input_vocabulary = input_vocab.itos
 output_vocabulary = output_vocab.itos
 
+print(input_vocabulary)
+input()
+print(output_vocabulary)
+
 # random.seed(3)
 
 # print "Input vocabulary:"
