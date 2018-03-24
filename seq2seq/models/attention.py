@@ -69,7 +69,7 @@ class Attention(nn.Module):
             attn.data.masked_fill_(self.mask, -float('inf'))
 
         # apply local mask
-        attn.data.masked_fill_(mask, -float('inf'))
+        # attn.data.masked_fill_(mask, -float('inf'))
 
         attn = F.softmax(attn.view(-1, input_size), dim=1).view(batch_size, -1, input_size)
 

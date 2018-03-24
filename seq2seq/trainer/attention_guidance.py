@@ -20,13 +20,15 @@ class AttentionGenerator(object):
         name (str): name of the attention generation mechanism
         key (str): key under which targets are stored in target dict
         pad_value (int): target token to use for padding
+        ignore_output_eos (bool, optional): Whether to ignore the output EOS symbol, (default: False)
     """
 
-    def __init__(self, name, key, input_eos_used, pad_value=-1):
+    def __init__(self, name, key, pad_value=-1, input_eos_used=False, ignore_output_eos=False):
         self.name = name
         self.key = key
         self.input_eos_used = input_eos_used
         self.pad_value = pad_value
+        self.ignore_output_eos = ignore_output_eos
 
     def add_attention_targets(self, input_variables, input_lengths, target_variables):
         """ Generate attention targets
@@ -54,13 +56,13 @@ class LookupTableAttention(AttentionGenerator):
 
     Args:
         pad_value (int): target token to use for padding
-
+        ignore_output_eos (bool, optional): Whether to ignore the output EOS symbol, (default: False)
     """
     _NAME = "lookup_table"
     _KEY = "attention_target"
 
-    def __init__(self, input_eos_used, pad_value):
-        super(LookupTableAttention, self).__init__(name=self._NAME, key=self._KEY, input_eos_used=input_eos_used, pad_value=pad_value)
+    def __init__(self, pad_value, input_eos_used=False, ignore_output_eos=False):
+        super(LookupTableAttention, self).__init__(name=self._NAME, key=self._KEY, pad_value=pad_value, input_eos_used=input_eos_used, ignore_output_eos=ignore_output_eos)
 
     def add_attention_targets(self, input_variables, input_lengths, target_variables):
         max_val = max(input_lengths) + 1
@@ -69,7 +71,8 @@ class LookupTableAttention(AttentionGenerator):
         # get target attentions
         # The first value is -11, but is anyways always ignored. All values of -1 are also ignored.
         # If the EOS is used in input we attend the target EOS to the input EOS.
-        if self.input_eos_used:
+        # Except for when we ignore the output EOS.
+        if self.input_eos_used and not self.ignore_output_eos:
             # Example:
             # INPUT:      01 t1 t2 EOS
             # OUTPUT: SOS 01 11 00 EOS
@@ -105,16 +108,15 @@ class PonderGenerator(object):
     Args:
         name (str): name of the attention generation mechanism
         key (str): key under which targets are stored in target dict
-        pad_value (int): target token to use for padding
+        pad_token (int): target token to use for padding
 
     Attributes:
         name (str): name of the attention generation mechanism
         key (str): key under which targets are stored in target dict
         pad_token (int): target token to be ignored
-
     """
 
-    def __init__(self, name, key, input_eos_used, pad_token=-1):
+    def __init__(self, name, key, pad_token=-1, input_eos_used=False):
         self.name = name
         self.key = key
         self.input_eos_used = input_eos_used
@@ -140,14 +142,18 @@ class PonderGenerator(object):
 
 
 class LookupTablePonderer(PonderGenerator):
-    """ Attention for lookup tables postfix annotation
-
+    """Attention for lookup tables postfix annotation
+    
     """
     _NAME = "lookup_table"
     _KEY = "attention_target"
 
-    def __init__(self, input_eos_used):
-        super(LookupTablePonderer, self).__init__(name=self._NAME, key=self._KEY, input_eos_used=input_eos_used, pad_token=-1)
+    def __init__(self, pad_token, input_eos_used=False):
+        """        
+        Args:
+            pad_token (int): pad token value
+        """
+        super(LookupTablePonderer, self).__init__(name=self._NAME, key=self._KEY, pad_token=pad_token, input_eos_used=input_eos_used)
 
     def mask_silent_outputs(self, input_variable, input_lengths, decoder_outputs):
         """ Find the last steps for every output sequence sequence.
