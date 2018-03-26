@@ -30,6 +30,6 @@ class TestPredictor(unittest.TestCase):
 
     def test_predict(self):
         src_seq = ["I", "am", "fat"]
-        tgt_seq = self.predictor.predict(src_seq)
+        tgt_seq,_ = self.predictor.predict(src_seq)
         for tok in tgt_seq:
             self.assertTrue(tok in self.predictor.tgt_vocab.stoi)

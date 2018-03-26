@@ -65,6 +65,8 @@ for step, data in enumerate(master_data):
         ipt_sentence = data[i,0]
         seq = ipt_sentence.strip().split()
         outputs, attention = predictor.predict(seq)
+        if (attention==0):
+            break
         name = os.path.join(opt.output_dir, data_name[step], data_name[step]+'{}'.format(i))
         attn_plotter.evaluateAndShowAttention(ipt_sentence, outputs, attention, name)
 
@@ -72,6 +74,7 @@ if opt.run_infer:
     while True:
             seq_str = raw_input("Type in a source sequence:")
             seq = seq_str.strip().split()
-            print(predictor.predict(seq))
+            out = predictor.predict(seq)
+            print(out[0])
 else:
     print("Exiting Inference Mode")
