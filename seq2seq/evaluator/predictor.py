@@ -38,7 +38,15 @@ class Predictor(object):
 
         softmax_list, _, other = self.model(src_id_seq, [len(src_seq)])
         length = other['length'][0]
+        attn_vec_len = other['attention_score'][0].data.size()[-1]
+        attention_tensors = [other['attention_score'][di][0].data for di in range(length)]
+
+        attentions = torch.zeros(length, attn_vec_len)
+        for i in range(length):
+            attentions[i,:] = attention_tensors[i]
+
+        attentions = attentions.numpy()
 
         tgt_id_seq = [other['sequence'][di][0].data[0] for di in range(length)]
         tgt_seq = [self.tgt_vocab.itos[tok] for tok in tgt_id_seq]
-        return tgt_seq
+        return tgt_seq, attentions
