@@ -59,12 +59,12 @@ class SupervisedTrainer(object):
     def _train_batch(self, input_variable, input_lengths, target_variable, model, teacher_forcing_ratio):
         loss = self.loss
 
-        # print "input variable:", input_variable
-        # print "input lengths:", input_lengths
-
+        # If attentive guidance is provided in the data set, add this as kwarg
+        kwargs = {} if 'provided_attention' not in target_variable else {'provided_attention': target_variable['provided_attention']}
+        
         # Forward propagation
         decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths, target_variable['decoder_output'],
-                                                       teacher_forcing_ratio=teacher_forcing_ratio)
+                                                       teacher_forcing_ratio=teacher_forcing_ratio, **kwargs)
 
         if self.ponderer is not None:
             decoder_outputs = self.ponderer.mask_silent_outputs(input_variable, input_lengths, decoder_outputs)
@@ -258,6 +258,13 @@ class SupervisedTrainer(object):
     def get_batch_data(batch):
         input_variables, input_lengths = getattr(batch, seq2seq.src_field_name)
         target_variables = {'decoder_output': getattr(batch, seq2seq.tgt_field_name)}
+
+        # If available, also get provided attentive guidance data
+        if hasattr(batch, seq2seq.attn_field_name):
+            attention_variables = getattr(batch, seq2seq.attn_field_name)
+
+            target_variables['provided_attention'] = attention_variables
+
         return input_variables, input_lengths, target_variables
 
     @staticmethod

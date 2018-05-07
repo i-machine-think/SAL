@@ -115,7 +115,10 @@ class Evaluator(object):
 
             input_variable, input_lengths, target_variable = get_batch_data(batch)
 
-            decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths.tolist(), target_variable['decoder_output'])
+            # If attentive guidance is provided in the data set, add this as kwarg
+            kwargs = {} if 'provided_attention' not in target_variable else {'provided_attention': target_variable['provided_attention']}
+
+            decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths.tolist(), target_variable['decoder_output'], **kwargs)
 
             # apply metrics over entire sequence
             metrics = self.update_batch_metrics(metrics, other, target_variable)
