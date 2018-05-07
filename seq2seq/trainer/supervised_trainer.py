@@ -17,6 +17,7 @@ from seq2seq.metrics import WordAccuracy
 from seq2seq.optim import Optimizer
 from seq2seq.util.checkpoint import Checkpoint
 
+
 class SupervisedTrainer(object):
     """ The SupervisedTrainer class helps in setting up a training framework in a
     supervised setting.
@@ -27,22 +28,26 @@ class SupervisedTrainer(object):
         loss (list, optional): list of seq2seq.loss.Loss objects for training (default: [seq2seq.loss.NLLLoss])
         metrics (list, optional): list of seq2seq.metric.metric objects to be computed during evaluation
         batch_size (int, optional): batch size for experiment, (default: 64)
+        eval_batch_size (int, optional): batch size for evaluation, (default: 128)
+        ignore_output_eos (bool, optional): Whether to ignore the output EOS for loss backpropagation, (default: False)
+        random_seed (int, optional): Set fixed seed for pseudo-random number generators for reproducibility. Set to None for to use time-based seed, (default: None)
         checkpoint_every (int, optional): number of epochs to checkpoint after, (default: 100)
         print_every (int, optional): number of iterations to print after, (default: 100)
     """
-    def __init__(self, expt_dir='experiment', loss=[NLLLoss()], loss_weights=None, metrics=[], batch_size=64, eval_batch_size=128,
-                 random_seed=None,
+
+    def __init__(self, expt_dir='experiment', losses=[NLLLoss()], loss_weights=None, metrics=[],
+                 batch_size=64, eval_batch_size=128, ignore_output_eos=False, random_seed=None,
                  checkpoint_every=100, print_every=100):
         self._trainer = "Simple Trainer"
         self.random_seed = random_seed
         if random_seed is not None:
             random.seed(random_seed)
             torch.manual_seed(random_seed)
-        k = NLLLoss()
-        self.loss = loss
+
+        self.losses = losses
         self.metrics = metrics
-        self.loss_weights = loss_weights or len(loss)*[1.]
-        self.evaluator = Evaluator(loss=self.loss, metrics=self.metrics, batch_size=eval_batch_size)
+        self.loss_weights = loss_weights or len(losses)*[1.]
+        self.evaluator = Evaluator(batch_size=eval_batch_size, losses=self.losses, metrics=self.metrics, ignore_output_eos=ignore_output_eos)
         self.optimizer = None
         self.checkpoint_every = checkpoint_every
         self.print_every = print_every
@@ -54,10 +59,15 @@ class SupervisedTrainer(object):
             os.makedirs(self.expt_dir)
         self.batch_size = batch_size
 
+        self.ignore_output_eos = ignore_output_eos
+        self.output_eos_token = None
+        self.output_pad_token = None
+        self.attention_function = None
+
         self.logger = logging.getLogger(__name__)
 
     def _train_batch(self, input_variable, input_lengths, target_variable, model, teacher_forcing_ratio):
-        loss = self.loss
+        losses = self.losses
 
         # print "input variable:", input_variable
         # print "input lengths:", input_lengths
@@ -72,7 +82,7 @@ class SupervisedTrainer(object):
             target_variable['decoder_output'] = decoder_targets
 
         losses = self.evaluator.compute_batch_loss(decoder_outputs, decoder_hidden, other, target_variable)
-        
+
         # Backward propagation
         for i, loss in enumerate(losses, 0):
             loss.scale_loss(self.loss_weights[i])
@@ -104,7 +114,7 @@ class SupervisedTrainer(object):
 
         # store initial model to be sure at least one model is stored
         eval_data = dev_data or data
-        losses, metrics = self.evaluator.evaluate(model, eval_data, self.get_batch_data, ponderer=self.ponderer)
+        losses, metrics = self.evaluator.evaluate(model=model, data=eval_data, ponderer=self.ponderer, attention_function=self.attention_function)
 
         total_loss, log_msg, model_name = self.print_eval(losses, metrics, step)
         print(log_msg)
@@ -119,7 +129,6 @@ class SupervisedTrainer(object):
                    input_vocab=data.fields[seq2seq.src_field_name].vocab,
                    output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
 
-
         for epoch in range(start_epoch, n_epochs + 1):
             log.debug("Epoch: %d, Step: %d" % (epoch, step))
 
@@ -133,7 +142,6 @@ class SupervisedTrainer(object):
             for batch in batch_generator:
                 step += 1
                 step_elapsed += 1
-                    
 
                 input_variables, input_lengths, target_variables = self.get_batch_data(batch)
 
@@ -149,16 +157,15 @@ class SupervisedTrainer(object):
                     print_loss_total = 0
                     log_msg = 'Progress: %d%%, Train %s: %.4f' % (
                         step / total_steps * 100,
-                        self.loss[0].name,
+                        self.losses[0].name,
                         print_loss_avg)
                     log.info(log_msg)
 
                 # check if new model should be saved
                 if step % self.checkpoint_every == 0 or step == total_steps:
                     # compute dev loss
-                    losses, metrics = self.evaluator.evaluate(model, eval_data, self.get_batch_data, ponderer=self.ponderer)
+                    losses, metrics = self.evaluator.evaluate(model, eval_data, ponderer=self.ponderer, attention_function=self.attention_function)
                     total_loss, log_msg, model_name = self.print_eval(losses, metrics, step)
-
 
                     max_eval_loss = max(loss_best)
                     if total_loss < max_eval_loss:
@@ -180,9 +187,9 @@ class SupervisedTrainer(object):
 
             epoch_loss_avg = epoch_loss_total / min(steps_per_epoch, step - start_step)
             epoch_loss_total = 0
-            log_msg = "Finished epoch %d: Train %s: %.4f" % (epoch, self.loss[0].name, epoch_loss_avg)
+            log_msg = "Finished epoch %d: Train %s: %.4f" % (epoch, self.losses[0].name, epoch_loss_avg)
             if dev_data is not None:
-                losses, metrics = self.evaluator.evaluate(model, dev_data, self.get_batch_data, ponderer=self.ponderer)
+                losses, metrics = self.evaluator.evaluate(model=model, data=dev_data, ponderer=self.ponderer, attention_function=self.attention_function)
                 loss_total, log_, model_name = self.print_eval(losses, metrics, step)
 
                 self.optimizer.update(loss_total, epoch)    # TODO check if this makes sense!
@@ -193,7 +200,7 @@ class SupervisedTrainer(object):
 
             log.info(log_msg)
 
-    def train(self, model, data, ponderer=None, num_epochs=5,
+    def train(self, model, data, ponderer=None, attention_function=None, num_epochs=5,
               resume=False, dev_data=None, optimizer=None,
               teacher_forcing_ratio=0,
               learning_rate=0.001, checkpoint_path=None, top_k=5):
@@ -203,6 +210,8 @@ class SupervisedTrainer(object):
             model (seq2seq.models): model to run training on, if `resume=True`, it would be
                overwritten by the model loaded from the latest checkpoint.
             data (seq2seq.dataset.dataset.Dataset): dataset object to train on
+            ponderer (seq2seq.trainer.PonderGenerator): Object that masks silent pondering steps, (defeault: None)
+            attention_function (seq2seq.trainer.AttentionGenerator): Generator of ground-truth attention guidance, (default: None)
             num_epochs (int, optional): number of epochs to run (default 5)
             resume(bool, optional): resume training with the latest checkpoint, (default False)
             dev_data (seq2seq.dataset.dataset.Dataset, optional): dev Dataset (default None)
@@ -216,6 +225,14 @@ class SupervisedTrainer(object):
             model (seq2seq.models): trained model.
         """
         # If training is set to resume
+
+        # Store the eos and pad tokens of the output data
+        self.output_eos_token = data.fields[seq2seq.tgt_field_name].vocab.stoi['<eos>']
+        self.output_pad_token = data.fields[seq2seq.tgt_field_name].vocab.stoi['<pad>']
+
+        self.ponderer = ponderer
+        self.attention_function = attention_function
+
         if resume:
             resume_checkpoint = Checkpoint.load(checkpoint_path)
             model = resume_checkpoint.model
@@ -246,18 +263,26 @@ class SupervisedTrainer(object):
 
         self.logger.info("Optimizer: %s, Scheduler: %s" % (self.optimizer.optimizer, self.optimizer.scheduler))
 
-        self.ponderer = ponderer
-
         self._train_epoches(data, model, num_epochs,
                             start_epoch, step, dev_data=dev_data,
                             teacher_forcing_ratio=teacher_forcing_ratio,
                             top_k=top_k)
         return model
 
-    @staticmethod
-    def get_batch_data(batch):
+    def get_batch_data(self, batch):
         input_variables, input_lengths = getattr(batch, seq2seq.src_field_name)
         target_variables = {'decoder_output': getattr(batch, seq2seq.tgt_field_name)}
+
+        # Replace all <eos> with <pad> in the output targets. This should make
+        # sure that they are ignored in calculating the output loss
+        if self.ignore_output_eos:
+            eos_indices = (target_variables['decoder_output']==self.output_eos_token)
+            target_variables['decoder_output'] = target_variables['decoder_output'].masked_fill(eos_indices, self.output_pad_token)
+        
+        # Add attention targets if attention guidance function is provided
+        if self.attention_function is not None:
+            target_variables = self.attention_function.add_attention_targets(input_variables, input_lengths, target_variables)
+
         return input_variables, input_lengths, target_variables
 
     @staticmethod

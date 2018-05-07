@@ -35,6 +35,7 @@ parser.add_argument('--use_attention_loss', action='store_true')
 parser.add_argument('--scale_attention_loss', type=float, default=1.)
 
 parser.add_argument('--use_input_eos', action='store_true', help='EOS symbol in input sequences is not used by default. Use this flag to enable.')
+parser.add_argument('--ignore_output_eos', action='store_true', help="Set to true to ignore the EOS output of the decoder for backprogation.")
 
 opt = parser.parse_args()
 
@@ -95,14 +96,14 @@ if opt.pondering:
     ponderer = LookupTablePonderer(pad_token=pad)
 attention_function = None
 if opt.use_attention_loss:
-    attention_function = LookupTableAttention(pad_value=IGNORE_INDEX)
+    attention_function = LookupTableAttention(pad_value=IGNORE_INDEX, ignore_output_eos=opt.ignore_output_eos)
     data_func = AttentionTrainer.get_batch_data
 
 #################################################################################
 # Evaluate model on test set
 
-evaluator = Evaluator(batch_size=opt.batch_size, loss=losses, metrics=metrics)
-losses, metrics = evaluator.evaluate(model=seq2seq, data=test, get_batch_data=data_func, ponderer=ponderer)
+evaluator = Evaluator(batch_size=opt.batch_size, loss=losses, metrics=metrics, ignore_output_eos=opt.ignore_output_eos)
+losses, metrics = evaluator.evaluate(model=seq2seq, data=test, get_batch_data=data_func, ponderer=ponderer, attention_function=attention_function)
 
 total_loss, log_msg, _ = SupervisedTrainer.print_eval(losses, metrics, 0)
 

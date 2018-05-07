@@ -4,7 +4,7 @@ import torch
 import torchtext
 
 import seq2seq
-from seq2seq.loss import NLLLoss
+from seq2seq.loss import NLLLoss, AttentionLoss
 from seq2seq.metrics import WordAccuracy, SequenceAccuracy
 
 class Evaluator(object):
@@ -13,12 +13,21 @@ class Evaluator(object):
     Args:
         loss (seq2seq.loss, optional): loss for evaluator (default: seq2seq.loss.NLLLoss)
         batch_size (int, optional): batch size for evaluator (default: 64)
+        ignore_output_eos (bool, optional): Whether to ignore the output EOS for loss and metrics calculation, (default: False)
     """
 
-    def __init__(self, loss=[NLLLoss()], metrics=[WordAccuracy(), SequenceAccuracy()], batch_size=64):
-        self.losses = loss
-        self.metrics = metrics
+    def __init__(self, batch_size=64, losses=[NLLLoss()], metrics=[WordAccuracy(), SequenceAccuracy()], ignore_output_eos=False):
         self.batch_size = batch_size
+
+        self.losses = losses
+        self.attention_loss_used = any(isinstance(loss, AttentionLoss) for loss in self.losses)
+
+        self.metrics = metrics
+
+        self.ignore_output_eos = ignore_output_eos
+        self.output_eos_token = None
+        self.output_pad_token = None
+        self.attention_function = None
 
     def update_batch_metrics(self, metrics, other, target_variable):
         """
@@ -82,17 +91,27 @@ class Evaluator(object):
 
         return losses
 
-    def evaluate(self, model, data, get_batch_data, ponderer):
+    def evaluate(self, model, data, ponderer=None, attention_function=None):
         """ Evaluate a model on given dataset and return performance.
 
         Args:
             model (seq2seq.models): model to evaluate
             data (seq2seq.dataset.dataset.Dataset): dataset to evaluate against
-
+            ponderer (seq2seq.trainer.PonderGenerator): Object that masks silent pondering steps, (defeault: None)
+            attention_function (seq2seq.trainer.AttentionGenerator): Generator of ground-truth attention guidance, (default: None)
+            
         Returns:
             loss (float): loss of the given model on the given dataset
             accuracy (float): accuracy of the given model on the given dataset
         """
+        # Store the eos and pad tokens of the output data
+        self.output_eos_token = data.fields[seq2seq.tgt_field_name].vocab.stoi['<eos>']
+        self.output_pad_token = data.fields[seq2seq.tgt_field_name].vocab.stoi['<pad>']
+
+        self.attention_function = attention_function
+        if self.attention_function is None:
+            assert self.attention_loss_used is False, "Evaluator is supposed to calculate attention loss, but no attention function is provided"
+
         model.eval()
 
         losses = self.losses
@@ -113,7 +132,7 @@ class Evaluator(object):
         # loop over batches
         for batch in batch_iterator:
 
-            input_variable, input_lengths, target_variable = get_batch_data(batch)
+            input_variable, input_lengths, target_variable = self.get_batch_data(batch)
 
             decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths.tolist(), target_variable['decoder_output'])
 
@@ -132,3 +151,19 @@ class Evaluator(object):
         seq_accuracy = metrics[1].get_val()
 
         return losses, metrics
+
+    def get_batch_data(self, batch):
+        input_variables, input_lengths = getattr(batch, seq2seq.src_field_name)
+        target_variables = {'decoder_output': getattr(batch, seq2seq.tgt_field_name)}
+
+        # Replace all <eos> with <pad> in the output targets. This should make
+        # sure that they are ignored in calculating the output loss
+        if self.ignore_output_eos:
+            eos_indices = (target_variables['decoder_output']==self.output_eos_token)
+            target_variables['decoder_output'] = target_variables['decoder_output'].masked_fill(eos_indices, self.output_pad_token)
+
+        # Add attention targets if attention guidance function is provided
+        if self.attention_function is not None:
+            target_variables = self.attention_function.add_attention_targets(input_variables, input_lengths, target_variables)
+
+        return input_variables, input_lengths, target_variables
