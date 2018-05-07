@@ -26,6 +26,7 @@ except NameError:
 parser = argparse.ArgumentParser()
 parser.add_argument('--train', help='Training data')
 parser.add_argument('--dev', help='Development data')
+parser.add_argument('--monitor', nargs='+', default=[], help='Data to monitor during training')
 parser.add_argument('--output_dir', default='../models', help='Path to model directory. If load_checkpoint is True, then path to checkpoint directory has to be provided')
 parser.add_argument('--epochs', type=int, help='Number of epochs', default=6)
 parser.add_argument('--optim', type=str, help='Choose optimizer', choices=['adam', 'adadelta', 'adagrad', 'adamax', 'rmsprop', 'sgd'])
@@ -45,6 +46,7 @@ parser.add_argument('--attention', choices=['pre-rnn', 'post-rnn'], default=Fals
 parser.add_argument('--attention_method', choices=['dot', 'mlp', 'concat'], default=None)
 parser.add_argument('--use_attention_loss', action='store_true')
 parser.add_argument('--scale_attention_loss', type=float, default=1.)
+parser.add_argument('--full_focus', action='store_true')
 parser.add_argument('--batch_size', type=int, help='Batch size', default=32)
 parser.add_argument('--eval_batch_size', type=int, help='Batch size', default=128)
 parser.add_argument('--lr', type=float, help='Learning rate, recommended settings.\nrecommended settings: adam=0.001 adadelta=1.0 adamax=0.002 rmsprop=0.01 sgd=0.1', default=0.001)
@@ -106,6 +108,14 @@ if opt.dev:
 else:
     dev = None
 
+monitor_data = {}
+for dataset in opt.monitor:
+    m = torchtext.data.TabularDataset(
+        path=dataset, format='tsv',
+        fields=[('src', src), ('tgt', tgt)],
+        filter_pred=len_filter)
+    monitor_data[dataset] = m
+
 #################################################################################
 # prepare model
 
@@ -146,6 +156,7 @@ else:
                          n_layers=opt.n_layers,
                          use_attention=opt.attention,
                          attention_method=opt.attention_method,
+                         full_focus=opt.full_focus,
                          bidirectional=opt.bidirectional,
                          rnn_cell=opt.rnn_cell,
                          eos_id=tgt.eos_id, sos_id=tgt.sos_id)
@@ -208,6 +219,7 @@ if not opt.use_attention_loss:
 
     seq2seq = t.train(seq2seq, train, 
                       num_epochs=opt.epochs, dev_data=dev,
+                      monitor_data=monitor_data,
                       ponderer=ponderer,
                       optimizer=opt.optim,
                       teacher_forcing_ratio=opt.teacher_forcing_ratio,
@@ -224,6 +236,7 @@ else:
 
     seq2seq = t.train(seq2seq, train, 
                       num_epochs=opt.epochs, dev_data=dev,
+                      monitor_data=monitor_data,
                       attention_function=attention_function,
                       ponderer=ponderer,
                       optimizer=opt.optim,
