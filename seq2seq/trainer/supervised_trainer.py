@@ -19,6 +19,7 @@ from seq2seq.metrics import WordAccuracy
 from seq2seq.optim import Optimizer
 from seq2seq.util.checkpoint import Checkpoint
 
+
 class SupervisedTrainer(object):
     """ The SupervisedTrainer class helps in setting up a training framework in a
     supervised setting.
@@ -32,7 +33,9 @@ class SupervisedTrainer(object):
         checkpoint_every (int, optional): number of epochs to checkpoint after, (default: 100)
         print_every (int, optional): number of iterations to print after, (default: 100)
     """
-    def __init__(self, expt_dir='experiment', loss=[NLLLoss()], loss_weights=None, metrics=[], batch_size=64, eval_batch_size=128,
+
+    def __init__(self, expt_dir='experiment', loss=[NLLLoss()], loss_weights=None, metrics=[], batch_size=64,
+                 eval_batch_size=128,
                  random_seed=None,
                  checkpoint_every=100, print_every=100):
         self._trainer = "Simple Trainer"
@@ -43,7 +46,7 @@ class SupervisedTrainer(object):
         k = NLLLoss()
         self.loss = loss
         self.metrics = metrics
-        self.loss_weights = loss_weights or len(loss)*[1.]
+        self.loss_weights = loss_weights or len(loss) * [1.]
         self.evaluator = Evaluator(loss=self.loss, metrics=self.metrics, batch_size=eval_batch_size)
         self.optimizer = None
         self.checkpoint_every = checkpoint_every
@@ -67,11 +70,12 @@ class SupervisedTrainer(object):
 
         if self.ponderer is not None:
             decoder_outputs = self.ponderer.mask_silent_outputs(input_variable, input_lengths, decoder_outputs)
-            decoder_targets = self.ponderer.mask_silent_targets(input_variable, input_lengths, target_variable['decoder_output'])
+            decoder_targets = self.ponderer.mask_silent_targets(input_variable, input_lengths,
+                                                                target_variable['decoder_output'])
             target_variable['decoder_output'] = decoder_targets
 
         losses = self.evaluator.compute_batch_loss(decoder_outputs, decoder_hidden, other, target_variable)
-        
+
         # Backward propagation
         for i, loss in enumerate(losses, 0):
             loss.scale_loss(self.loss_weights[i])
@@ -111,8 +115,8 @@ class SupervisedTrainer(object):
         total_loss, log_msg, model_name = self.get_losses(losses, metrics, step)
         print(log_msg)
 
-        loss_best = top_k*[total_loss]
-        best_checkpoints = top_k*[None]
+        loss_best = top_k * [total_loss]
+        best_checkpoints = top_k * [None]
         best_checkpoints[0] = model_name
 
         Checkpoint(model=model,
@@ -120,7 +124,6 @@ class SupervisedTrainer(object):
                    epoch=start_epoch, step=start_step,
                    input_vocab=data.fields[seq2seq.src_field_name].vocab,
                    output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
-
 
         for epoch in range(start_epoch, n_epochs + 1):
             log.debug("Epoch: %d, Step: %d" % (epoch, step))
@@ -138,7 +141,8 @@ class SupervisedTrainer(object):
 
                 input_variables, input_lengths, target_variables = self.get_batch_data(batch)
 
-                losses = self._train_batch(input_variables, input_lengths.tolist(), target_variables, model, teacher_forcing_ratio)
+                losses = self._train_batch(input_variables, input_lengths.tolist(), target_variables, model,
+                                           teacher_forcing_ratio)
 
                 # Record average loss
                 for loss in losses:
@@ -158,45 +162,49 @@ class SupervisedTrainer(object):
                     m_logs = {}
                     # compute vals for all monitored sets
                     for m_data in monitor_data:
-                        losses, metrics = self.evaluator.evaluate(model, monitor_data[m_data], self.get_batch_data, ponderer=self.ponderer)
+                        losses, metrics = self.evaluator.evaluate(model, monitor_data[m_data], self.get_batch_data,
+                                                                  ponderer=self.ponderer)
                         total_loss, log_msg, model_name = self.get_losses(losses, metrics, step)
                         m_logs[m_data] = log_msg
 
                     all_losses = ' '.join(['%s: \t %s \n' % (os.path.basename(name), m_logs[name]) for name in m_logs])
 
                     log_msg = 'Progress %d%%, Train %s, %s' % (
-                            step / total_steps * 100,
-                            train_log_msg,
-                            all_losses)
+                        step / total_steps * 100,
+                        train_log_msg,
+                        all_losses)
 
                     log.info(log_msg)
 
                 # check if new model should be saved
                 if step % self.checkpoint_every == 0 or step == total_steps:
                     # compute dev loss
-                    losses, metrics = self.evaluator.evaluate(model, val_data, self.get_batch_data, ponderer=self.ponderer)
+                    losses, metrics = self.evaluator.evaluate(model, val_data, self.get_batch_data,
+                                                              ponderer=self.ponderer)
                     total_loss, log_msg, model_name = self.get_losses(losses, metrics, step)
 
                     max_eval_loss = max(loss_best)
                     if total_loss < max_eval_loss:
-                            index_max = loss_best.index(max_eval_loss)
-                            # rm prev model
-                            if best_checkpoints[index_max] is not None:
-                                shutil.rmtree(os.path.join(self.expt_dir, best_checkpoints[index_max]))
-                            best_checkpoints[index_max] = model_name
-                            loss_best[index_max] = total_loss
+                        index_max = loss_best.index(max_eval_loss)
+                        # rm prev model
+                        if best_checkpoints[index_max] is not None:
+                            shutil.rmtree(os.path.join(self.expt_dir, best_checkpoints[index_max]))
+                        best_checkpoints[index_max] = model_name
+                        loss_best[index_max] = total_loss
 
-                            # save model
-                            Checkpoint(model=model,
-                                       optimizer=self.optimizer,
-                                       epoch=epoch, step=step,
-                                       input_vocab=data.fields[seq2seq.src_field_name].vocab,
-                                       output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
+                        # save model
+                        Checkpoint(model=model,
+                                   optimizer=self.optimizer,
+                                   epoch=epoch, step=step,
+                                   input_vocab=data.fields[seq2seq.src_field_name].vocab,
+                                   output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir,
+                                                                                                name=model_name)
 
             if step_elapsed == 0: continue
 
-	    for loss in losses:
-                epoch_loss_avg[loss.log_name] = epoch_loss_total[loss.log_name] / min(steps_per_epoch, step - start_step)
+            for loss in losses:
+                epoch_loss_avg[loss.log_name] = epoch_loss_total[loss.log_name] / min(steps_per_epoch,
+                                                                                      step - start_step)
                 epoch_loss_total[loss.log_name] = 0
 
             loss_msg = ' '.join(['%s: %.4f' % (loss.log_name, loss.get_loss()) for loss in losses])
@@ -206,16 +214,16 @@ class SupervisedTrainer(object):
                 losses, metrics = self.evaluator.evaluate(model, dev_data, self.get_batch_data, ponderer=self.ponderer)
                 loss_total, log_, model_name = self.get_losses(losses, metrics, step)
 
-                self.optimizer.update(loss_total, epoch)    # TODO check if this makes sense!
+                self.optimizer.update(loss_total, epoch)  # TODO check if this makes sense!
                 log_msg += ", Dev set: " + log_
                 model.train(mode=True)
             else:
-                self.optimizer.update(epoch_loss_avg, epoch) # TODO check if this makes sense!
+                self.optimizer.update(epoch_loss_avg, epoch)  # TODO check if this makes sense!
 
             log.info(log_msg)
 
     def train(self, model, data, ponderer=None, num_epochs=5,
-              resume=False, dev_data=None, 
+              resume=False, dev_data=None,
               monitor_data={}, optimizer=None,
               teacher_forcing_ratio=0,
               learning_rate=0.001, checkpoint_path=None, top_k=5):
@@ -260,7 +268,7 @@ class SupervisedTrainer(object):
                 optims = {'adam': optim.Adam, 'adagrad': optim.Adagrad,
                           'adadelta': optim.Adadelta, 'adamax': optim.Adamax,
                           'rmsprop': optim.RMSprop, 'sgd': optim.SGD,
-                           None:optim.Adam}
+                          None: optim.Adam}
                 return optims[optim_name]
 
             self.optimizer = Optimizer(get_optim(optimizer)(model.parameters(), lr=learning_rate),
@@ -287,7 +295,7 @@ class SupervisedTrainer(object):
     def get_losses(losses, metrics, step):
         total_loss = 0
         model_name = ''
-        log_msg= ''
+        log_msg = ''
 
         for metric in metrics:
             val = metric.get_val()

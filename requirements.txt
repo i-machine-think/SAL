@@ -4,3 +4,4 @@ tqdm
 torchtext
 six
 mock
+matplotlib
