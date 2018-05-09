@@ -132,11 +132,11 @@ class DecoderRNN(BaseRNN):
         # Prepare the extra arguments for the attention method
         if self.attention_method == 'hard':
             attention_method_kwargs = {
-                'step': step
+                'step': kwargs['step']
             }
         elif self.attention_method == 'provided':
             attention_method_kwargs = {
-                'step': step,
+                'step': kwargs['step'],
                 'provided_attention': kwargs['provided_attention'],
                 'input_lengths': kwargs['input_lengths']
             }
