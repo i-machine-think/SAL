@@ -91,7 +91,7 @@ class TestDecoderRNN(unittest.TestCase):
                             batch_finished_seqs[b].append(time_batch_queue[t][b][k])
                             continue
                         inputs = torch.autograd.Variable(torch.LongTensor([[inputs]]))
-                        decoder_outputs, hidden, _ = decoder.forward_step(inputs, hidden, None, F.log_softmax)
+                        decoder_outputs, hidden, _ = decoder.forward_step(t, inputs, hidden, None, F.log_softmax)
                         topk_score, topk = decoder_outputs[0].data.topk(beam_size)
                         for score, sym in zip(topk_score.tolist()[0], topk.tolist()[0]):
                             new_queue.append((t, sym, hidden, score + seq_score, k))

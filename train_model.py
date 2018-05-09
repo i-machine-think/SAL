@@ -46,7 +46,7 @@ parser.add_argument('--dropout_p_decoder', type=float, help='Dropout probability
 parser.add_argument('--teacher_forcing_ratio', type=float, help='Teacher forcing ratio', default=0.2)
 parser.add_argument('--pondering', action='store_true')
 parser.add_argument('--attention', choices=['pre-rnn', 'post-rnn'], default=False)
-parser.add_argument('--attention_method', choices=['dot', 'mlp', 'concat'], default=None)
+parser.add_argument('--attention_method', choices=['dot', 'mlp', 'concat', 'hard'], default=None)
 parser.add_argument('--use_attention_loss', action='store_true')
 parser.add_argument('--scale_attention_loss', type=float, default=1.)
 parser.add_argument('--full_focus', action='store_true')
@@ -73,6 +73,9 @@ if opt.resume and not opt.load_checkpoint:
 
 if opt.use_attention_loss and not opt.attention:
     parser.error('Specify attention type to use attention loss')
+
+if opt.use_attention_loss and opt.attention_method == 'hard':
+    parser.error("Attention loss cannot be used in combination with hard-coded attentive guidance")
 
 LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
