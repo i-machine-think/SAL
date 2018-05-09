@@ -88,13 +88,13 @@ class WordAccuracy(Metric):
         for step, step_output in enumerate(outputs):
             target = targets[:, step + 1]
             non_padding = target.ne(self.ignore_index)
-            correct = outputs[step].view(-1).eq(target).masked_select(non_padding).sum().data[0]
+            correct = outputs[step].view(-1).eq(target).masked_select(non_padding).long().sum().data[0]
             self.word_match += correct
-            self.word_total += non_padding.sum().data[0]
+            self.word_total += non_padding.long().sum().data[0]
 
 class FinalTargetAccuracy(Metric):
     """
-    Batch average of the accuracy on the final target (step before <eos>)
+    Batch average of the accuracy on the final target (step before <eos>, if eos is present)
 
     Args:
         ignore_index (int, optional): index of padding
@@ -104,7 +104,7 @@ class FinalTargetAccuracy(Metric):
     _SHORTNAME = "target_acc"
     _INPUT = "sequence"
 
-    def __init__(self, ignore_index=None, eos_id=2):
+    def __init__(self, ignore_index, eos_id):    # TODO check if returns error if default is not given
         self.ignore_index = ignore_index
         self.eos = eos_id
         self.word_match = 0
@@ -129,8 +129,7 @@ class FinalTargetAccuracy(Metric):
 
         self.target_total += batch_size
 
-        for step, next_step_output in enumerate(outputs[1:]):
-            cur_step_output = outputs[step]
+        for step, step_output in enumerate(outputs):
 
             target = targets[:, step + 1]
 
@@ -147,7 +146,7 @@ class FinalTargetAccuracy(Metric):
                 mask = cur_mask
 
             # compute correct, masking all outputs that are padding or eos, or are not followed by padding or eos
-            correct = cur_step_output.view(-1).eq(target).masked_select(mask).sum().data[0]
+            correct = step_output.view(-1).eq(target).masked_select(mask).long().sum().data[0]
 
             self.target_match += correct
 
@@ -199,5 +198,5 @@ class SequenceAccuracy(Metric):
             match_per_seq += correct_per_seq.type(torch.FloatTensor)
             total_per_seq += non_padding.type(torch.FloatTensor).data
 
-        self.seq_match += match_per_seq.eq(total_per_seq).sum()
+        self.seq_match += match_per_seq.eq(total_per_seq).long().sum()
         self.seq_total += total_per_seq.shape[0]

@@ -82,7 +82,7 @@ class Evaluator(object):
 
         return losses
 
-    def evaluate(self, model, data, get_batch_data, ponderer):
+    def evaluate(self, model, data, get_batch_data, ponderer, **get_batch_kwargs):
         """ Evaluate a model on given dataset and return performance.
 
         Args:
@@ -112,8 +112,7 @@ class Evaluator(object):
 
         # loop over batches
         for batch in batch_iterator:
-
-            input_variable, input_lengths, target_variable = get_batch_data(batch)
+            input_variable, input_lengths, target_variable = get_batch_data(batch, **get_batch_kwargs)
 
             # If attentive guidance is provided in the data set, add this as kwarg
             kwargs = {} if 'provided_attention' not in target_variable else {'provided_attention': target_variable['provided_attention']}

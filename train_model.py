@@ -7,6 +7,9 @@ from torch.optim.lr_scheduler import StepLR
 import torchtext
 
 import random
+import pickle
+
+from collections import OrderedDict
 
 import seq2seq
 from seq2seq.trainer import SupervisedTrainer, LookupTableAttention, AttentionTrainer, LookupTablePonderer
@@ -26,6 +29,7 @@ except NameError:
 parser = argparse.ArgumentParser()
 parser.add_argument('--train', help='Training data')
 parser.add_argument('--dev', help='Development data')
+parser.add_argument('--monitor', nargs='+', default=[], help='Data to monitor during training')
 parser.add_argument('--output_dir', default='../models', help='Path to model directory. If load_checkpoint is True, then path to checkpoint directory has to be provided')
 parser.add_argument('--epochs', type=int, help='Number of epochs', default=6)
 parser.add_argument('--optim', type=str, help='Choose optimizer', choices=['adam', 'adadelta', 'adagrad', 'adamax', 'rmsprop', 'sgd'])
@@ -45,18 +49,20 @@ parser.add_argument('--attention', choices=['pre-rnn', 'post-rnn'], default=Fals
 parser.add_argument('--attention_method', choices=['dot', 'mlp', 'concat', 'hard', 'provided'], default=None)
 parser.add_argument('--use_attention_loss', action='store_true')
 parser.add_argument('--scale_attention_loss', type=float, default=1.)
+parser.add_argument('--full_focus', action='store_true')
 parser.add_argument('--batch_size', type=int, help='Batch size', default=32)
 parser.add_argument('--eval_batch_size', type=int, help='Batch size', default=128)
 parser.add_argument('--lr', type=float, help='Learning rate, recommended settings.\nrecommended settings: adam=0.001 adadelta=1.0 adamax=0.002 rmsprop=0.01 sgd=0.1', default=0.001)
 parser.add_argument('--use_input_eos', action='store_true', help='EOS symbol in input sequences is not used by default. Use this flag to enable.')
+parser.add_argument('--ignore_output_eos', action='store_true', help='Ignore end of sequence token during training and evaluation')
 
 parser.add_argument('--load_checkpoint', help='The name of the checkpoint to load, usually an encoded time string')
 parser.add_argument('--save_every', type=int, help='Every how many batches the model should be saved', default=100)
 parser.add_argument('--print_every', type=int, help='Every how many batches to print results', default=100)
 parser.add_argument('--resume', action='store_true', help='Indicates if training has to be resumed from the latest checkpoint')
 parser.add_argument('--log-level', default='info', help='Logging level.')
+parser.add_argument('--write-logs', help='Specify file to write logs to after training')
 parser.add_argument('--cuda_device', default=0, type=int, help='set cuda device to use')
-parser.add_argument('--ignore_eos', action='store_true', help='Ignore end of sequence value during training and evaluation')
 
 opt = parser.parse_args()
 
@@ -69,7 +75,7 @@ if opt.use_attention_loss and not opt.attention:
     parser.error('Specify attention type to use attention loss')
 
 if opt.use_attention_loss and opt.attention_method in ['hard', 'provided']:
-    parser.error("Attention loss cannot be used in combination with hard-coded attentive guidance")
+    parser.error("Attention loss cannot be used in combination with hard attentive guidance")
 
 LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
@@ -86,8 +92,9 @@ if opt.attention:
 
 ############################################################################
 # Prepare dataset
+use_output_eos = not opt.ignore_output_eos
 src = SourceField(use_input_eos=opt.use_input_eos)
-tgt = TargetField()
+tgt = TargetField(include_eos=use_output_eos)
 tabular_data_fields = [('src', src), ('tgt', tgt)]
 
 if opt.attention_method == 'provided':
@@ -114,6 +121,14 @@ if opt.dev:
     )
 else:
     dev = None
+
+monitor_data = OrderedDict()
+for dataset in opt.monitor:
+    m = torchtext.data.TabularDataset(
+        path=dataset, format='tsv',
+        fields=[('src', src), ('tgt', tgt)],
+        filter_pred=len_filter)
+    monitor_data[dataset] = m
 
 #################################################################################
 # prepare model
@@ -155,6 +170,7 @@ else:
                          n_layers=opt.n_layers,
                          use_attention=opt.attention,
                          attention_method=opt.attention_method,
+                         full_focus=opt.full_focus,
                          bidirectional=opt.bidirectional,
                          rnn_cell=opt.rnn_cell,
                          eos_id=tgt.eos_id, sos_id=tgt.sos_id)
@@ -202,9 +218,9 @@ checkpoint_path = os.path.join(opt.output_dir, opt.load_checkpoint) if opt.resum
 
 ponderer = None
 if opt.pondering:
-    ponderer = LookupTablePonderer(input_eos_used=opt.use_input_eos)
+    ponderer = LookupTablePonderer(input_eos_used=opt.use_input_eos, output_eos_used=use_output_eos)
 if opt.use_attention_loss:
-    attention_function = LookupTableAttention(input_eos_used=opt.use_input_eos, pad_value=IGNORE_INDEX)
+    attention_function = LookupTableAttention(input_eos_used=opt.use_input_eos, output_eos_used=use_output_eos, pad_value=IGNORE_INDEX)
 
 # create trainer
 if not opt.use_attention_loss:
@@ -215,8 +231,9 @@ if not opt.use_attention_loss:
                           checkpoint_every=opt.save_every,
                           print_every=opt.print_every, expt_dir=opt.output_dir)
 
-    seq2seq = t.train(seq2seq, train, 
+    seq2seq, logs = t.train(seq2seq, train, 
                       num_epochs=opt.epochs, dev_data=dev,
+                      monitor_data=monitor_data,
                       ponderer=ponderer,
                       optimizer=opt.optim,
                       teacher_forcing_ratio=opt.teacher_forcing_ratio,
@@ -225,14 +242,15 @@ if not opt.use_attention_loss:
                       checkpoint_path=checkpoint_path)
 else:
     t = AttentionTrainer(loss=loss, metrics=metrics, 
-                          loss_weights=loss_weights,
-                          batch_size=opt.batch_size,
-                          eval_batch_size=opt.eval_batch_size,
-                          checkpoint_every=opt.save_every,
-                          print_every=opt.print_every, expt_dir=opt.output_dir)
+                         loss_weights=loss_weights,
+                         batch_size=opt.batch_size,
+                         eval_batch_size=opt.eval_batch_size,
+                         checkpoint_every=opt.save_every,
+                         print_every=opt.print_every, expt_dir=opt.output_dir)
 
-    seq2seq = t.train(seq2seq, train, 
+    seq2seq, logs = t.train(seq2seq, train, 
                       num_epochs=opt.epochs, dev_data=dev,
+                      monitor_data=monitor_data,
                       attention_function=attention_function,
                       ponderer=ponderer,
                       optimizer=opt.optim,
@@ -240,6 +258,11 @@ else:
                       learning_rate=opt.lr,
                       resume=opt.resume,
                       checkpoint_path=checkpoint_path)
+
+if opt.write_logs:
+    f = open(os.path.join(opt.output_dir, opt.write_logs), 'wb')
+    pickle.dump(logs, f)
+    f.close()
 
 # evaluator = Evaluator(loss=loss, batch_size=opt.batch_size)
 # dev_loss, accuracy = evaluator.evaluate(seq2seq, dev)

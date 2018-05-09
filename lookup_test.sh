@@ -1,12 +1,12 @@
 #! /bin/sh
 
-TRAIN_PATH=data/lookup-3bit/train_attn.tsv
-DEV_PATH=data/lookup-3bit/validation_attn.tsv
-TEST1_PATH=data/lookup-3bit/test1_heldout_attn.tsv
-TEST2_PATH=data/lookup-3bit/test2_subset_attn.tsv
-TEST3_PATH=data/lookup-3bit/test3_hybrid_attn.tsv
-TEST4_PATH=data/lookup-3bit/test4_unseen_attn.tsv
-TEST5_PATH=data/lookup-3bit/test5_longer_attn.tsv
+TRAIN_PATH=data/hard_attention/lookup-3bit/train.tsv
+DEV_PATH=data/hard_attention/lookup-3bit/validation.tsv
+TEST1_PATH=data/hard_attention/lookup-3bit/test1_heldout.tsv
+TEST2_PATH=data/hard_attention/lookup-3bit/test2_subset.tsv
+TEST3_PATH=data/hard_attention/lookup-3bit/test3_hybrid.tsv
+TEST4_PATH=data/hard_attention/lookup-3bit/test4_unseen.tsv
+TEST5_PATH=data/hard_attention/lookup-3bit/test5_longer.tsv
 EXPT_DIR=example
 
 # use small parameters for quicker testing

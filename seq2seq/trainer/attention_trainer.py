@@ -36,26 +36,30 @@ class AttentionTrainer(SupervisedTrainer):
         super(AttentionTrainer, self).__init__(expt_dir=expt_dir, loss=loss, loss_weights=loss_weights, metrics=metrics, batch_size=batch_size, random_seed=random_seed, checkpoint_every=checkpoint_every, print_every=print_every)
         
     def train(self, model, data, num_epochs=5,
-              resume=False, dev_data=None,
+              resume=False, dev_data=None, monitor_data={},
               attention_function=None, ponderer=None,
               optimizer=None, teacher_forcing_ratio=0,
               learning_rate=0.001, checkpoint_path=None, top_k=5):
 
-        self.attention_function = attention_function
-        if self.attention_function is None:
+        if attention_function is None:
             raise ValueError("attention_function cannot be None in attention trainer, provide function to generate attention targets")
 
-        super(AttentionTrainer, self).train(
-                model=model, data=data, 
-                ponderer=ponderer,
-                num_epochs=num_epochs, resume=resume,
-                dev_data=dev_data, optimizer=optimizer,
-                teacher_forcing_ratio=teacher_forcing_ratio,
-                learning_rate=learning_rate, checkpoint_path=checkpoint_path,
-                top_k=top_k)
+        self.get_batch_kwargs['attention_function'] = attention_function
 
-    def get_batch_data(self, batch):
-        input_variables, input_lengths, target_variables = super(AttentionTrainer, self).get_batch_data(batch)
-        target_variables = self.attention_function.add_attention_targets(input_variables, input_lengths, target_variables)
+        return super(AttentionTrainer, self).train(
+                        model=model, data=data, 
+                        ponderer=ponderer,
+                        num_epochs=num_epochs, resume=resume,
+                        dev_data=dev_data, monitor_data=monitor_data,
+                        optimizer=optimizer,
+                        teacher_forcing_ratio=teacher_forcing_ratio,
+                        learning_rate=learning_rate, 
+                        checkpoint_path=checkpoint_path,
+                        top_k=top_k)
+
+    @staticmethod
+    def get_batch_data(batch, **kwargs):
+        input_variables, input_lengths, target_variables = super(AttentionTrainer, AttentionTrainer).get_batch_data(batch)
+        target_variables = kwargs['attention_function'].add_attention_targets(input_variables, input_lengths, target_variables)
 
         return input_variables, input_lengths, target_variables
