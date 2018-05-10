@@ -25,7 +25,6 @@ parser.add_argument('--run_infer', action='store_true')
 
 opt = parser.parse_args()
 
-opt = parser.parse_args()
 
 #################################################################################
 #prepare data
