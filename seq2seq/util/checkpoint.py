@@ -19,8 +19,10 @@ class Checkpoint(object):
         optimizer (Optimizer): stores the state of the optimizer
         epoch (int): current epoch (an epoch is a loop through the full training data)
         step (int): number of examples seen within the current epoch
-        input_vocab (Vocabulary): vocabulary for the input language
-        output_vocab (Vocabulary): vocabulary for the output language
+        input_vocab (torchtext.Field): Vocabulary for the input language
+        output_vocab (torch.text.Field): Vocabulary for the input language
+        input_eos_used (Boolean): Boolean indicating whether the EOS symbol was used in the input sequences
+        output_eos_used (Boolean): Boolean indicating whether the EOS symbol was used in the output sequences
 
     Attributes:
         TRAINER_STATE_NAME (str): name of the file storing trainer states
@@ -33,12 +35,15 @@ class Checkpoint(object):
     MODEL_NAME = 'model.pt'
     INPUT_VOCAB_FILE = 'input_vocab.pt'
     OUTPUT_VOCAB_FILE = 'output_vocab.pt'
+    EOS_SETTINGS_FILE = 'eos_settings.pt'
 
-    def __init__(self, model, optimizer, epoch, step, input_vocab, output_vocab, path=None):
+    def __init__(self, model, optimizer, epoch, step, input_vocab, output_vocab, input_eos_used, output_eos_used, path=None):
         self.model = model
         self.optimizer = optimizer
         self.input_vocab = input_vocab
         self.output_vocab = output_vocab
+        self.input_eos_used = input_eos_used
+        self.output_eos_used = output_eos_used
         self.epoch = epoch
         self.step = step
         self._path = path
@@ -78,6 +83,8 @@ class Checkpoint(object):
             dill.dump(self.input_vocab, fout)
         with open(os.path.join(path, self.OUTPUT_VOCAB_FILE), 'wb') as fout:
             dill.dump(self.output_vocab, fout)
+        with open(os.path.join(path, self.EOS_SETTINGS_FILE), 'wb') as fout:
+            dill.dump({'input_eos_used': self.input_eos_used, 'output_eos_used': self.output_eos_used}, fout)
 
         return path
 
@@ -103,9 +110,14 @@ class Checkpoint(object):
             input_vocab = dill.load(fin)
         with open(os.path.join(path, cls.OUTPUT_VOCAB_FILE), 'rb') as fin:
             output_vocab = dill.load(fin)
+        with open(os.path.join(path, cls.EOS_SETTINGS_FILE), 'rb') as fin:
+            eos_settings = dill.load(fin)
         optimizer = resume_checkpoint['optimizer']
-        return Checkpoint(model=model, input_vocab=input_vocab,
+        return Checkpoint(model=model,
+                          input_vocab=input_vocab,
                           output_vocab=output_vocab,
+                          input_eos_used=eos_settings['input_eos_used'],
+                          output_eos_used=eos_settings['output_eos_used'],
                           optimizer=optimizer,
                           epoch=resume_checkpoint['epoch'],
                           step=resume_checkpoint['step'],

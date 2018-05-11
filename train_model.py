@@ -159,6 +159,13 @@ if opt.load_checkpoint is not None:
     tgt.eos_id = tgt.vocab.stoi[tgt.SYM_EOS]
     tgt.sos_id = tgt.vocab.stoi[tgt.SYM_SOS]
 
+    if checkpoint.input_eos_used != opt.use_input_eos:
+        parser.error("Input EOS detected in checkpoint, but use_input_eos not set to True. Or vice versa")
+
+    if checkpoint.output_eos_used != use_output_eos:
+        parser.error("Output EOS detected in checkpoint, but ignore_output_eos set to True. Or vice versa")
+
+
 else:
     # build vocabulary
     src.build_vocab(train, max_size=opt.src_vocab)

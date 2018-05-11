@@ -67,6 +67,12 @@ seq2seq = checkpoint.model
 input_vocab = checkpoint.input_vocab
 output_vocab = checkpoint.output_vocab
 
+if checkpoint.input_eos_used != opt.use_input_eos:
+    parser.error("Input EOS detected in checkpoint, but use_input_eos not set to True. Or vice versa")
+
+if checkpoint.output_eos_used != output_eos_used:
+    parser.error("Output EOS detected in checkpoint, but ignore_output_eos set to True. Or vice versa")
+
 ############################################################################
 # Prepare dataset and loss
 src = SourceField(opt.use_input_eos)

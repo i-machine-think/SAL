@@ -119,7 +119,9 @@ class SupervisedTrainer(object):
                    optimizer=self.optimizer,
                    epoch=start_epoch, step=start_step,
                    input_vocab=data.fields[seq2seq.src_field_name].vocab,
-                   output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
+                   output_vocab=data.fields[seq2seq.tgt_field_name].vocab,
+                   input_eos_used=data.fields[seq2seq.src_field_name].eos_used,
+                   output_eos_used=data.fields[seq2seq.tgt_field_name].eos_used).save(self.expt_dir, name=model_name)
 
 
         for epoch in range(start_epoch, n_epochs + 1):
@@ -196,7 +198,9 @@ class SupervisedTrainer(object):
                                        optimizer=self.optimizer,
                                        epoch=epoch, step=step,
                                        input_vocab=data.fields[seq2seq.src_field_name].vocab,
-                                       output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
+                                       output_vocab=data.fields[seq2seq.tgt_field_name].vocab,
+                                       input_eos_used=data.fields[seq2seq.src_field_name].eos_used,
+                                       output_eos_used=data.fields[seq2seq.tgt_field_name].eos_used).save(self.expt_dir, name=model_name)
 
             if step_elapsed == 0: continue
 

@@ -18,7 +18,7 @@ class TestCheckpoint(unittest.TestCase):
             shutil.rmtree(path)
 
     def test_path_error(self):
-        ckpt = Checkpoint(None, None, None, None, None, None)
+        ckpt = Checkpoint(None, None, None, None, None, None, None, None)
         self.assertRaises(LookupError, lambda: ckpt.path)
 
     @mock.patch('seq2seq.util.checkpoint.torch')
@@ -27,6 +27,8 @@ class TestCheckpoint(unittest.TestCase):
     def test_save_checkpoint_calls_torch_save(self, mock_open, mock_dill, mock_torch):
         epoch = 5
         step = 10
+        use_input_eos = True
+        use_output_eos = True
         optim = mock.Mock()
         state_dict = {'epoch': epoch, 'step': step, 'optimizer': optim}
 
@@ -36,7 +38,8 @@ class TestCheckpoint(unittest.TestCase):
 
         chk_point = Checkpoint(model=mock_model, optimizer=optim,
                                epoch=epoch, step=step,
-                               input_vocab=mock_vocab, output_vocab=mock_vocab)
+                               input_vocab=mock_vocab, output_vocab=mock_vocab,
+                               input_eos_used=use_input_eos, output_eos_used=use_output_eos)
 
         path = chk_point.save(self._get_experiment_dir())
 
@@ -45,10 +48,11 @@ class TestCheckpoint(unittest.TestCase):
                                         os.path.join(chk_point.path, Checkpoint.TRAINER_STATE_NAME))
         mock_torch.save.assert_any_call(mock_model,
                                         os.path.join(chk_point.path, Checkpoint.MODEL_NAME))
-        self.assertEquals(2, mock_open.call_count)
+        self.assertEquals(3, mock_open.call_count)
         mock_open.assert_any_call(os.path.join(path, Checkpoint.INPUT_VOCAB_FILE), ANY)
         mock_open.assert_any_call(os.path.join(path, Checkpoint.OUTPUT_VOCAB_FILE), ANY)
-        self.assertEquals(2, mock_dill.dump.call_count)
+        mock_open.assert_any_call(os.path.join(path, Checkpoint.EOS_SETTINGS_FILE), ANY)
+        self.assertEquals(3, mock_dill.dump.call_count)
         mock_dill.dump.assert_any_call(mock_vocab,
                                        mock_open.return_value.__enter__.return_value)
 
@@ -56,7 +60,11 @@ class TestCheckpoint(unittest.TestCase):
     @mock.patch('seq2seq.util.checkpoint.dill')
     @mock.patch('seq2seq.util.checkpoint.open')
     def test_load(self, mock_open, mock_dill, mock_torch):
-        dummy_vocabulary = mock.Mock()
+        dummy_vocabulary = mock.MagicMock()
+        # Make the dummy_vocabulary hold two items, that are called within Checkpoint.load()
+        mydict = {'input_eos_used': True, 'output_eos_used': True}
+        dummy_vocabulary.__getitem__.side_effect = mydict.__getitem__
+
         mock_optimizer = mock.Mock()
         torch_dict = {"optimizer": mock_optimizer, "epoch": 5, "step": 10}
         mock_open.return_value = mock.MagicMock()

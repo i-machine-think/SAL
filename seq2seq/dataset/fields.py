@@ -21,6 +21,8 @@ class SourceField(torchtext.data.Field):
         """
         logger = logging.getLogger(__name__)
 
+        self.eos_used = use_input_eos
+
         if kwargs.get('batch_first') is False:
             logger.warning("Option batch_first has to be set to use pytorch-seq2seq.  Changed to True.")
         kwargs['batch_first'] = True
@@ -55,7 +57,7 @@ class TargetField(torchtext.data.Field):
 
     def __init__(self, include_eos=True, **kwargs):
         logger = logging.getLogger(__name__)
-        self.include_eos = include_eos
+        self.eos_used = include_eos
 
         if kwargs.get('batch_first') == False:
             logger.warning("Option batch_first has to be set to use pytorch-seq2seq.  Changed to True.")
@@ -66,7 +68,7 @@ class TargetField(torchtext.data.Field):
         else:
             func = kwargs['preprocessing']
 
-        if self.include_eos:
+        if self.eos_used:
             app_eos = [self.SYM_EOS]
         else:
             app_eos = []
