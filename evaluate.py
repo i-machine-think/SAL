@@ -67,11 +67,12 @@ seq2seq = checkpoint.model
 input_vocab = checkpoint.input_vocab
 output_vocab = checkpoint.output_vocab
 
+d = {False: ' not', True: ''}
 if checkpoint.input_eos_used != opt.use_input_eos:
-    parser.error("Input EOS detected in checkpoint, but use_input_eos not set to True. Or vice versa")
+    parser.error("Input EOS%s detected in checkpoint, but use_input_eos set to %r" % (d[opt.input_eos_used], opt.use_input_eos))
 
 if checkpoint.output_eos_used != output_eos_used:
-    parser.error("Output EOS detected in checkpoint, but ignore_output_eos set to True. Or vice versa")
+    parser.error("Output EOS%s detected in checkpoint, but ignore_output_eos set to %r" % (d[opt.output_eos_used], opt.ignore_output_eos))
 
 ############################################################################
 # Prepare dataset and loss
