@@ -130,6 +130,7 @@ if opt.dev:
         fields=tabular_data_fields,
         filter_pred=len_filter
     )
+
 else:
     dev = None
 
@@ -140,6 +141,34 @@ for dataset in opt.monitor:
         fields=tabular_data_fields,
         filter_pred=len_filter)
     monitor_data[dataset] = m
+
+# When chosen to use attentive guidance, check whether the data is correct for the first
+# example in the data set. We can assume that the other examples are then also correct.
+if opt.use_attention_loss or opt.attention_method == 'hard':
+    if len(train) > 0:
+        if 'attn' not in vars(train[0]):
+            raise Exception("AttentionField not found in train data")
+        tgt_len = len(vars(train[0])['tgt']) - 1 # -1 for SOS
+        attn_len = len(vars(train[0])['attn']) - 1 # -1 for preprended ignore_index
+        if attn_len != tgt_len:
+            raise Exception("Length of output sequence does not equal length of attention sequence in train data. Did you specify the EOS's correctly?")
+
+    if dev is not None and len(dev) > 0:
+        if 'attn' not in vars(dev[0]):
+            raise Exception("AttentionField not found in dev data")
+        tgt_len = len(vars(dev[0])['tgt']) - 1 # -1 for SOS
+        attn_len = len(vars(dev[0])['attn']) - 1 # -1 for preprended ignore_index
+        if attn_len != tgt_len:
+            raise Exception("Length of output sequence does not equal length of attention sequence in dev data. Did you specify the EOS's correctly?")
+
+    for m in monitor_data:
+        if len(m) > 0:
+            if 'attn' not in vars(m[0]):
+                raise Exception("AttentionField not found in monitor data")
+            tgt_len = len(vars(m[0])['tgt']) - 1 # -1 for SOS
+            attn_len = len(vars(m[0])['attn']) - 1 # -1 for preprended ignore_index
+            if attn_len != tgt_len:
+                raise Exception("Length of output sequence does not equal length of attention sequence in monitor data. Did you specify the EOS's correctly?")
 
 #################################################################################
 # prepare model
