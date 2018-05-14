@@ -96,6 +96,7 @@ test = torchtext.data.TabularDataset(
 
 # Prepare loss and metrics
 pad = output_vocab.stoi[tgt.pad_token]
+
 losses = [NLLLoss(ignore_index=pad)]
 loss_weights = [1.]
 

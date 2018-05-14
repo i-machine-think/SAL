@@ -104,7 +104,7 @@ class Evaluator(object):
             metric.reset()
 
         # create batch iterator
-        device = None if torch.cuda.is_available() else -1
+        device = torch.cuda.current_device() if torch.cuda.is_available() else -1
         batch_iterator = torchtext.data.BucketIterator(
             dataset=data, batch_size=self.batch_size,
             sort=True, sort_key=lambda x: len(x.src),

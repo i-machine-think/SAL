@@ -180,6 +180,7 @@ else:
                          rnn_cell=opt.rnn_cell,
                          eos_id=tgt.eos_id, sos_id=tgt.sos_id)
     seq2seq = Seq2seq(encoder, decoder)
+
     if torch.cuda.is_available():
         seq2seq.cuda()
 
@@ -211,13 +212,14 @@ losses = [NLLLoss(ignore_index=pad)]
 # loss_weights = [1.]
 loss_weights = [float(opt.xent_loss)]
 
-
 if opt.use_attention_loss:
     losses.append(AttentionLoss(ignore_index=IGNORE_INDEX))
     loss_weights.append(opt.scale_attention_loss)
 
+#TODO: Auto
+#TODO: Also auto in loss.py. Or are we doing it twice?
 if torch.cuda.is_available():
-    for loss in losses:
+    for losses in losses:
         loss.cuda()
 
 metrics = [WordAccuracy(ignore_index=pad), SequenceAccuracy(ignore_index=pad), FinalTargetAccuracy(ignore_index=pad, eos_id=tgt.eos_id)]
