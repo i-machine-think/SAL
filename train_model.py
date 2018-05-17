@@ -49,6 +49,7 @@ parser.add_argument('--attention', choices=['pre-rnn', 'post-rnn'], default=Fals
 parser.add_argument('--attention_method', choices=['dot', 'mlp', 'concat', 'hard'], default=None)
 parser.add_argument('--use_attention_loss', action='store_true')
 parser.add_argument('--scale_attention_loss', type=float, default=1.)
+parser.add_argument('--xent_loss', type=float, default=1.)
 parser.add_argument('--full_focus', action='store_true')
 parser.add_argument('--batch_size', type=int, help='Batch size', default=32)
 parser.add_argument('--eval_batch_size', type=int, help='Batch size', default=128)
@@ -108,8 +109,8 @@ tgt = TargetField(include_eos=use_output_eos)
 tabular_data_fields = [('src', src), ('tgt', tgt)]
 
 if opt.use_attention_loss or opt.attention_method == 'hard':
-  attn = AttentionField(use_vocab=False, ignore_index=IGNORE_INDEX)
-  tabular_data_fields.append(('attn', attn))
+    attn = AttentionField(use_vocab=False, ignore_index=IGNORE_INDEX)
+    tabular_data_fields.append(('attn', attn))
 
 max_len = opt.max_len
 
@@ -136,7 +137,7 @@ monitor_data = OrderedDict()
 for dataset in opt.monitor:
     m = torchtext.data.TabularDataset(
         path=dataset, format='tsv',
-        fields=[('src', src), ('tgt', tgt)],
+        fields=tabular_data_fields,
         filter_pred=len_filter)
     monitor_data[dataset] = m
 
@@ -213,7 +214,9 @@ output_vocabulary = output_vocab.itos
 # Prepare loss and metrics
 pad = output_vocab.stoi[tgt.pad_token]
 loss = [NLLLoss(ignore_index=pad)]
-loss_weights = [1.]
+# loss_weights = [1.]
+loss_weights = [float(opt.xent_loss)]
+
 
 if opt.use_attention_loss:
     loss.append(AttentionLoss(ignore_index=IGNORE_INDEX))
@@ -249,9 +252,8 @@ seq2seq, logs = t.train(seq2seq, train,
                   checkpoint_path=checkpoint_path)
 
 if opt.write_logs:
-    f = open(os.path.join(opt.output_dir, opt.write_logs), 'wb')
-    pickle.dump(logs, f)
-    f.close()
+    output_path = os.path.join(opt.output_dir, opt.write_logs)
+    logs.write_to_file(output_path)
 
 # evaluator = Evaluator(loss=loss, batch_size=opt.batch_size)
 # dev_loss, accuracy = evaluator.evaluate(seq2seq, dev)
