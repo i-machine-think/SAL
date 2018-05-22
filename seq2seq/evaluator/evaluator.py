@@ -128,6 +128,4 @@ class Evaluator(object):
 
                 losses = self.update_loss(losses, decoder_outputs, decoder_hidden, other, target_variable)
 
-                metrics = self.update_batch_metrics(metrics, other, target_variable)
-
         return losses, metrics
