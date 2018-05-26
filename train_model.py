@@ -161,7 +161,7 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
         if attn_len != tgt_len:
             raise Exception("Length of output sequence does not equal length of attention sequence in dev data. Did you specify the EOS's correctly?")
 
-    for m in monitor_data:
+    for m in monitor_data.values():
         if len(m) > 0:
             if 'attn' not in vars(m[0]):
                 raise Exception("AttentionField not found in monitor data")
