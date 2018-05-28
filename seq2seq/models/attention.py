@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+if torch.cuda.is_available():
+    import torch.cuda as device
+else:
+    import torch as device
 
 class Attention(nn.Module):
     """
@@ -227,7 +231,7 @@ class HardGuidance(nn.Module):
         attention_indices = attention_indices.contiguous().view(batch_size, -1, 1)
         # Initialize attention vectors. These are the pre-softmax scores, so any
         # -inf will become 0 (if there is at least one value not -inf)
-        attention_scores = torch.zeros(batch_size, dec_seqlen, enc_seqlen).fill_(-float('inf'))
+        attention_scores = device.FloatTensor(batch_size, dec_seqlen, enc_seqlen).fill_(-float('inf'))
         attention_scores = attention_scores.scatter_(dim=2, index=attention_indices, value=1)
         attention_scores = attention_scores
 
