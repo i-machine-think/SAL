@@ -85,7 +85,7 @@ class SupervisedTrainer(object):
         epoch_loss_avg = defaultdict(float)
         print_loss_avg = defaultdict(float)
 
-        iterator_device = torch.cuda.current_device() if torch.cuda.is_available() else -1
+        iterator_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         batch_iterator = torchtext.data.BucketIterator(
             dataset=data, batch_size=self.batch_size,
             sort=False, sort_within_batch=True,
