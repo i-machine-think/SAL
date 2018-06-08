@@ -151,7 +151,7 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
         tgt_len = len(vars(train[0])['tgt']) - 1 # -1 for SOS
         attn_len = len(vars(train[0])['attn']) - 1 # -1 for preprended ignore_index
         if attn_len != tgt_len:
-            raise Exception("Length of output sequence does not equal length of attention sequence in train data. Did you specify the EOS's correctly?")
+            raise Exception("Length of output sequence does not equal length of attention sequence in train data")
 
     if dev is not None and len(dev) > 0:
         if 'attn' not in vars(dev[0]):
@@ -159,7 +159,7 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
         tgt_len = len(vars(dev[0])['tgt']) - 1 # -1 for SOS
         attn_len = len(vars(dev[0])['attn']) - 1 # -1 for preprended ignore_index
         if attn_len != tgt_len:
-            raise Exception("Length of output sequence does not equal length of attention sequence in dev data. Did you specify the EOS's correctly?")
+            raise Exception("Length of output sequence does not equal length of attention sequence in dev data.")
 
     for m in monitor_data.values():
         if len(m) > 0:
@@ -168,7 +168,7 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
             tgt_len = len(vars(m[0])['tgt']) - 1 # -1 for SOS
             attn_len = len(vars(m[0])['attn']) - 1 # -1 for preprended ignore_index
             if attn_len != tgt_len:
-                raise Exception("Length of output sequence does not equal length of attention sequence in monitor data. Did you specify the EOS's correctly?")
+                raise Exception("Length of output sequence does not equal length of attention sequence in monitor data.")
 
 #################################################################################
 # prepare model
