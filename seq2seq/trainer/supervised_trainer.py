@@ -17,6 +17,7 @@ from seq2seq.loss import NLLLoss, AttentionLoss
 from seq2seq.metrics import WordAccuracy
 from seq2seq.optim import Optimizer
 from seq2seq.util.checkpoint import Checkpoint
+from seq2seq.util.log import Log
 
 class SupervisedTrainer(object):
     """ The SupervisedTrainer class helps in setting up a training framework in a
@@ -63,11 +64,6 @@ class SupervisedTrainer(object):
         # Forward propagation
         decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths, target_variable, teacher_forcing_ratio=teacher_forcing_ratio)
 
-        if self.ponderer is not None:
-            decoder_outputs = self.ponderer.mask_silent_outputs(input_variable, input_lengths, decoder_outputs)
-            decoder_targets = self.ponderer.mask_silent_targets(input_variable, input_lengths, target_variable['decoder_output'])
-            target_variable['decoder_output'] = decoder_targets
-
         losses = self.evaluator.compute_batch_loss(decoder_outputs, decoder_hidden, other, target_variable)
         
         # Backward propagation
@@ -89,12 +85,12 @@ class SupervisedTrainer(object):
         epoch_loss_avg = defaultdict(float)
         print_loss_avg = defaultdict(float)
 
-        device = None if torch.cuda.is_available() else -1
+        iterator_device = torch.cuda.current_device() if torch.cuda.is_available() else -1
         batch_iterator = torchtext.data.BucketIterator(
             dataset=data, batch_size=self.batch_size,
             sort=False, sort_within_batch=True,
             sort_key=lambda x: len(x.src),
-            device=device, repeat=False)
+            device=iterator_device, repeat=False)
 
         steps_per_epoch = len(batch_iterator)
         total_steps = steps_per_epoch * n_epochs
@@ -104,12 +100,12 @@ class SupervisedTrainer(object):
 
         # store initial model to be sure at least one model is stored
         val_data = dev_data or data
-        losses, metrics = self.evaluator.evaluate(model, val_data, self.get_batch_data, ponderer=self.ponderer)
+        losses, metrics = self.evaluator.evaluate(model, val_data, self.get_batch_data)
 
         total_loss, log_msg, model_name = self.get_losses(losses, metrics, step)
-        print(log_msg)
+        log.info(log_msg)
 
-        logs = defaultdict(lambda: defaultdict(list))
+        logs = Log()
         loss_best = top_k*[total_loss]
         best_checkpoints = top_k*[None]
         best_checkpoints[0] = model_name
@@ -122,7 +118,7 @@ class SupervisedTrainer(object):
 
 
         for epoch in range(start_epoch, n_epochs + 1):
-            log.debug("Epoch: %d, Step: %d" % (epoch, step))
+            log.info("Epoch: %d, Step: %d" % (epoch, step))
 
             batch_generator = batch_iterator.__iter__()
 
@@ -153,19 +149,19 @@ class SupervisedTrainer(object):
                         print_loss_total[name] = 0
 
                     m_logs = {}
-                    train_losses, train_metrics = self.evaluator.evaluate(model, data, self.get_batch_data, ponderer=self.ponderer)
-                    # train_log_msg = ' '.join(['%s: %.4f' % (loss.log_name, loss.get_loss()) for loss in losses])
+                    train_losses, train_metrics = self.evaluator.evaluate(model, data, self.get_batch_data)
                     train_loss, train_log_msg, model_name = self.get_losses(train_losses, train_metrics, step)
-                    self.append_losses(logs, 'Train', train_losses, train_metrics, step)
+                    logs.write_to_log('Train', train_losses, train_metrics, step)
+                    logs.update_step(step)
 
                     m_logs['Train'] = train_log_msg
 
                     # compute vals for all monitored sets
                     for m_data in monitor_data:
-                        losses, metrics = self.evaluator.evaluate(model, monitor_data[m_data], self.get_batch_data, ponderer=self.ponderer)
+                        losses, metrics = self.evaluator.evaluate(model, monitor_data[m_data], self.get_batch_data)
                         total_loss, log_msg, model_name = self.get_losses(losses, metrics, step)
                         m_logs[m_data] = log_msg
-                        self.append_losses(logs, m_data, losses, metrics, step)
+                        logs.write_to_log(m_data, losses, metrics, step)
 
                     all_losses = ' '.join(['%s:\t %s\n' % (os.path.basename(name), m_logs[name]) for name in m_logs])
 
@@ -178,7 +174,7 @@ class SupervisedTrainer(object):
                 # check if new model should be saved
                 if step % self.checkpoint_every == 0 or step == total_steps:
                     # compute dev loss
-                    losses, metrics = self.evaluator.evaluate(model, val_data, self.get_batch_data, ponderer=self.ponderer)
+                    losses, metrics = self.evaluator.evaluate(model, val_data, self.get_batch_data)
                     total_loss, log_msg, model_name = self.get_losses(losses, metrics, step)
 
                     max_eval_loss = max(loss_best)
@@ -207,7 +203,7 @@ class SupervisedTrainer(object):
             log_msg = "Finished epoch %d: Train %s" % (epoch, loss_msg)
 
             if dev_data is not None:
-                losses, metrics = self.evaluator.evaluate(model, dev_data, self.get_batch_data, ponderer=self.ponderer)
+                losses, metrics = self.evaluator.evaluate(model, dev_data, self.get_batch_data)
                 loss_total, log_, model_name = self.get_losses(losses, metrics, step)
 
                 self.optimizer.update(loss_total, epoch)    # TODO check if this makes sense!
@@ -220,7 +216,7 @@ class SupervisedTrainer(object):
 
         return logs
 
-    def train(self, model, data, ponderer=None, num_epochs=5,
+    def train(self, model, data, num_epochs=5,
               resume=False, dev_data=None, 
               monitor_data={}, optimizer=None,
               teacher_forcing_ratio=0,
@@ -274,8 +270,6 @@ class SupervisedTrainer(object):
 
         self.logger.info("Optimizer: %s, Scheduler: %s" % (self.optimizer.optimizer, self.optimizer.scheduler))
 
-        self.ponderer = ponderer
-
         logs = self._train_epoches(data, model, num_epochs,
                             start_epoch, step, dev_data=dev_data,
                             monitor_data=monitor_data,
@@ -286,7 +280,8 @@ class SupervisedTrainer(object):
     @staticmethod
     def get_batch_data(batch):
         input_variables, input_lengths = getattr(batch, seq2seq.src_field_name)
-        target_variables = {'decoder_output': getattr(batch, seq2seq.tgt_field_name)}
+        target_variables = {'decoder_output': getattr(batch, seq2seq.tgt_field_name),
+                            'encoder_input': input_variables}  # The k-grammar metric needs to have access to the inputs
 
         # If available, also get provided attentive guidance data
         if hasattr(batch, seq2seq.attn_field_name):
@@ -294,21 +289,6 @@ class SupervisedTrainer(object):
             target_variables['attention_target'] = attention_target
 
         return input_variables, input_lengths, target_variables
-
-    @staticmethod
-    def append_losses(loss_dict, dataname, losses, metrics, step):
-        """ Append losses to dictionary """
-        for metric in metrics:
-            val = metric.get_val()
-            loss_dict[dataname][metric.log_name].append(val)
-
-        for loss in losses:
-            val = loss.get_loss()
-            loss_dict[dataname][loss.log_name].append(val)
-
-        loss_dict[dataname]['steps'].append(step)
-
-        return loss_dict
 
     @staticmethod
     def get_losses(losses, metrics, step):

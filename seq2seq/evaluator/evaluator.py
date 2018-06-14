@@ -82,7 +82,7 @@ class Evaluator(object):
 
         return losses
 
-    def evaluate(self, model, data, get_batch_data, ponderer):
+    def evaluate(self, model, data, get_batch_data):
         """ Evaluate a model on given dataset and return performance.
 
         Args:
@@ -93,6 +93,9 @@ class Evaluator(object):
             loss (float): loss of the given model on the given dataset
             accuracy (float): accuracy of the given model on the given dataset
         """
+        # If the model was in train mode before this method was called, we make sure it still is
+        # after this method.
+        previous_train_mode = model.training
         model.eval()
 
         losses = self.losses
@@ -104,30 +107,25 @@ class Evaluator(object):
             metric.reset()
 
         # create batch iterator
-        device = None if torch.cuda.is_available() else -1
+        iterator_device = torch.cuda.current_device() if torch.cuda.is_available() else -1
         batch_iterator = torchtext.data.BucketIterator(
             dataset=data, batch_size=self.batch_size,
             sort=True, sort_key=lambda x: len(x.src),
-            device=device, train=False)
+            device=iterator_device, train=False)
 
         # loop over batches
-        for batch in batch_iterator:
-            input_variable, input_lengths, target_variable = get_batch_data(batch)
+        with torch.no_grad():
+            for batch in batch_iterator:
+                input_variable, input_lengths, target_variable = get_batch_data(batch)
 
-            decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths.tolist(), target_variable)
+                decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths.tolist(), target_variable)
 
-            # apply metrics over entire sequence
-            metrics = self.update_batch_metrics(metrics, other, target_variable)
+                # Compute metric(s) over one batch
+                metrics = self.update_batch_metrics(metrics, other, target_variable)
+                
+                # Compute loss(es) over one batch
+                losses = self.update_loss(losses, decoder_outputs, decoder_hidden, other, target_variable)
 
-            # mask out silent steps in case of pondering
-            if ponderer is not None:
-                decoder_outputs = ponderer.mask_silent_outputs(input_variable, input_lengths, decoder_outputs)
-                decoder_targets = ponderer.mask_silent_targets(input_variable, input_lengths, target_variable['decoder_output'])
-                target_variable['decoder_output'] = decoder_targets
-
-            losses = self.update_loss(losses, decoder_outputs, decoder_hidden, other, target_variable)
-
-        accuracy = metrics[0].get_val()
-        seq_accuracy = metrics[1].get_val()
+        model.train(previous_train_mode)
 
         return losses, metrics

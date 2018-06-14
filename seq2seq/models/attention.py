@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Attention(nn.Module):
     """
@@ -33,8 +34,8 @@ class Attention(nn.Module):
     Examples::
 
          >>> attention = seq2seq.models.Attention(256)
-         >>> context = Variable(torch.randn(5, 3, 256))
-         >>> output = Variable(torch.randn(5, 5, 256))
+         >>> context = torch.randn(5, 3, 256)
+         >>> output = torch.randn(5, 5, 256)
          >>> output, attn = attention(output, context)
 
     """
@@ -60,17 +61,16 @@ class Attention(nn.Module):
         input_size = encoder_states.size(1)
 
         # compute mask
-        mask = encoder_states.eq(0.)[:, :, :1].transpose(1, 2).data
+        mask = encoder_states.eq(0.)[:, :, :1].transpose(1, 2)
 
         # Compute attention vals
         attn = self.method(decoder_states, encoder_states, **attention_method_kwargs)
-        attn_before = attn.data.clone()
 
         if self.mask is not None:
-            attn.data.masked_fill_(self.mask, -float('inf'))
+            attn.masked_fill_(self.mask, -float('inf'))
 
         # apply local mask
-        attn.data.masked_fill_(mask, -float('inf'))
+        attn.masked_fill_(mask, -float('inf'))
 
         attn = F.softmax(attn.view(-1, input_size), dim=1).view(batch_size, -1, input_size)
 
@@ -200,13 +200,13 @@ class HardGuidance(nn.Module):
         attention scores vectors.
 
         Args:
-            decoder_states (torch.autograd.Variable): Hidden layer of all decoder states (batch, dec_seqlen, hl_size)
-            encoder_states (torch.autograd.Variable): Output layer of all encoder states (batch, dec_seqlen, hl_size)
+            decoder_states (torch.FloatTensor): Hidden layer of all decoder states (batch, dec_seqlen, hl_size)
+            encoder_states (torch.FloatTensor): Output layer of all encoder states (batch, dec_seqlen, hl_size)
             step (int): The current decoder step for unrolled RNN. Set to -1 for rolled RNN
-            provided_attention (torch.autograd.Variable): Variable containing the provided attentive guidance indices (batch, max_provided_attention_length)
+            provided_attention (torch.LongTensor): Variable containing the provided attentive guidance indices (batch, max_provided_attention_length)
 
         Returns:
-            torch.autograd.Variable: Attention score vectors (batch, dec_seqlen, hl_size)
+            torch.tensor: Attention score vectors (batch, dec_seqlen, hl_size)
         """
 
         # decoder_states --> (batch, dec_seqlen, hl_size)
@@ -214,7 +214,7 @@ class HardGuidance(nn.Module):
         batch_size, enc_seqlen, _ = encoder_states.size()
         _,          dec_seqlen, _ = decoder_states.size()
 
-        attention_indices = provided_attention.data.clone()
+        attention_indices = provided_attention.detach()
         # If we have shorter examples in a batch, attend the PAD outputs to the first encoder state
         attention_indices.masked_fill_(attention_indices.eq(-1), 0)
 
@@ -228,8 +228,8 @@ class HardGuidance(nn.Module):
         attention_indices = attention_indices.contiguous().view(batch_size, -1, 1)
         # Initialize attention vectors. These are the pre-softmax scores, so any
         # -inf will become 0 (if there is at least one value not -inf)
-        attention_scores = torch.zeros(batch_size, dec_seqlen, enc_seqlen).fill_(-float('inf'))
+        attention_scores = torch.full([batch_size, dec_seqlen, enc_seqlen], fill_value=-float('inf'), device=device)
         attention_scores = attention_scores.scatter_(dim=2, index=attention_indices, value=1)
-        attention_scores = torch.autograd.Variable(attention_scores, requires_grad=False)
+        attention_scores = attention_scores
 
         return attention_scores
