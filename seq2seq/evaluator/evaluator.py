@@ -113,6 +113,8 @@ class Evaluator(object):
         # loop over batches
         for batch in batch_iterator:
             input_variable, input_lengths, target_variable = get_batch_data(batch)
+            # print(target_variable)
+            # input()
 
             decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths.tolist(), target_variable)
 

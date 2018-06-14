@@ -21,6 +21,8 @@ class PlotAttention(object):
         cbaxes.yaxis.set_ticks_position('left')
 
         # Set up axes
+        ax.set_xticks(np.arange(len(input_sentence.split()) + 1))
+        ax.set_yticks(np.arange(len(output_words) + 1))
         ax.set_xticklabels([''] + input_sentence.split(' '), rotation=0) #+['<EOS>']
         ax.set_yticklabels([''] + output_words)
 
@@ -66,8 +68,8 @@ class PlotAttention(object):
             tgt = self.master_data[row, 1][0].split(' ')[1]
             nis += ' ' +ipt[i] + '({})'.format(tgt)
             i+=1
-        row_t = np.where(self.master_data[:,0]==input_sentence)[0]
-        target = self.master_data[row_t,1]
+        #row_t = np.where(self.master_data[:,0]==input_sentence)[0]
+        #target = self.master_data[row_t,1]
         # print('input =', input_sentence)
         # print('target =', target)
         # print('output =', ' '.join(output_words))
