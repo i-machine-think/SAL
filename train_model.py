@@ -68,6 +68,8 @@ parser.add_argument('--cuda_device', default=0, type=int, help='set cuda device 
 # Ponder arguments
 parser.add_argument('--ponder_decoder', action='store_true', help='Use ACT pondering for the decocer')
 parser.add_argument('--max_ponder_steps', type=int, default=100, help='Hard maximum number of ponder steps')
+parser.add_argument('--ponder_epsilon', type=float, default=0.01, help='Epsilon for ACT to allow only 1 ponder step')
+parser.add_argument('--ponder_penalty_scale', type=float, default=0.01, help='Scale of the ponder penalty loss')
 
 opt = parser.parse_args()
 IGNORE_INDEX=-1
@@ -215,7 +217,8 @@ else:
                          rnn_cell=opt.rnn_cell,
                          eos_id=tgt.eos_id, sos_id=tgt.sos_id,
                          ponder=opt.ponder_decoder,
-                         max_ponder_steps=opt.max_ponder_steps)
+                         max_ponder_steps=opt.max_ponder_steps,
+                         ponder_epsilon=opt.ponder_epsilon)
     seq2seq = Seq2seq(encoder, decoder)
     seq2seq.to(device)
 

@@ -64,7 +64,7 @@ class DecoderRNN(nn.Module):
 
     def __init__(self, vocab_size, max_len, hidden_size, sos_id, eos_id, n_layers=1, rnn_cell='gru',
         bidirectional=False, input_dropout_p=0, dropout_p=0, use_attention=False,
-        attention_method=None, full_focus=False, ponder=False, max_ponder_steps=100):
+        attention_method=None, full_focus=False, ponder=False, max_ponder_steps=100, ponder_epsilon=0.01):
         super(DecoderRNN, self).__init__()
 
         self.bidirectional_encoder = bidirectional
@@ -76,7 +76,7 @@ class DecoderRNN(nn.Module):
         self.decoder_model = DecoderRNNModel(vocab_size, max_len, hidden_size, sos_id, eos_id, n_layers, rnn_cell, bidirectional, input_dropout_p, dropout_p, use_attention, attention_method, full_focus)
         
         if ponder:
-            self.decoder_model = Ponderer(self.decoder_model, hidden_size, ponder_steps=max_ponder_steps)
+            self.decoder_model = Ponderer(model=self.decoder_model, hidden_size=hidden_size, max_ponder_steps=max_ponder_steps, eps=ponder_epsilon)
 
     def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None,
                     function=F.log_softmax, teacher_forcing_ratio=0, provided_attention=None):

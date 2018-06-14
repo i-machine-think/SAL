@@ -8,19 +8,25 @@
   Might be best to just only allow unrolled behaviour
 - Assumes batch_first=True for now
 
-Returns model_output, hidden, and a list of all extra return values
+Returns model_output, hidden, ponder_penalty, and a list of all extra return values
 """
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class Ponderer(nn.Module):
-    def __init__(self, model, hidden_size, ponder_steps):
+    def __init__(self, model, hidden_size, max_ponder_steps, eps):
         super(Ponderer, self).__init__()
 
         self.model = model
         self.hidden_size = hidden_size
-        self.ponder_steps = ponder_steps
+        self.max_ponder_steps = max_ponder_steps
+        self.eps = eps
+
+        self.halt_layer = nn.Linear(hidden_size, 1)
+        # TODO: Prevent this from being reinitialized in train_model.py
+        self.halt_layer.bias = nn.Parameter(torch.Tensor([1.])) # Avoid too long pondering at start of training
 
     # Automatic delegation of undefined attributes.
     # First we check whether the parent class nn.Module has implemented this function
@@ -37,9 +43,11 @@ class Ponderer(nn.Module):
         input, hidden = args[0], args[1]
         args = args[2:]
 
+        assert input.size(0) == 1, "Ponderer currently does not work with batches. Should definitely be fixed."
         assert input.size(1) == 1, "Ponderer currently only works for unrolled RNN"
         assert not isinstance(input, torch.nn.utils.rnn.PackedSequence), "Ponderer currently does not work for PackedSequence"
 
+        halting_probabilities = []
         states = []
         cells = [] # For LSTMs
         outputs = []
@@ -52,9 +60,10 @@ class Ponderer(nn.Module):
         input1 = input.clone()
         input0[:,0] = 1
 
-        for i in range(self.ponder_steps):
+        halt_sum = 0
+        for ponder_step in range(0, self.max_ponder_steps):
             # Indicate whether this is the first ponder step
-            if i == 0:
+            if ponder_step == 0:
                 input = input1
             else:
                 input = input0
@@ -75,11 +84,40 @@ class Ponderer(nn.Module):
                 states.append(hidden)
             outputs.append(model_output)
 
-        # With static pondering, we don't take a weighted average, but just the last output for now
-        model_output = outputs[-1]
-        if cells:
-            hidden = (states[-1], cells[-1])
-        else:
-            hidden = states[-1]
+            # Compute and store halting probability
+            # TODO: Does view-1 work for batches?
+            halting_probabilities.append(F.sigmoid(self.halt_layer(states[-1])).view(-1))
+            halt_sum += halting_probabilities[-1].item()
 
-        return model_output, hidden, extra_return_values
+            if halt_sum >= 1 - self.eps:
+                break
+        ponder_steps = ponder_step + 1
+
+        # Residual is 1 - sum of all halting probabilities before the final step
+        residual = torch.Tensor([1.])
+        if len(halting_probabilities) > 1:
+            residual = residual - torch.sum(torch.cat(halting_probabilities[:-1]))
+
+        # Last steps halt probability is residual to make the probabilitiy distribution sum up to 1.
+        halting_probabilities[-1] = residual
+
+        # Convert lists to tensors
+        outputs = torch.stack(outputs, dim=1)
+        states = torch.stack(states, dim=1)
+        halting_probabilities = torch.cat(halting_probabilities)
+        if cells:
+            cells = torch.states(cells, dim=1)
+
+        # Get weighted averages
+        model_output = torch.mv(outputs, halting_probabilities)
+        if cells:
+            hidden = (
+                torch.mv(states, halting_probabilities),
+                torch.mv(cells, halting_probabilities)
+                )
+        else:
+            hidden = torch.mv(states, halting_probabilities)
+
+        ponder_penalty = ponder_steps + residual
+        
+        return model_output, hidden, ponder_penalty, extra_return_values
