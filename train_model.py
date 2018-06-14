@@ -65,6 +65,10 @@ parser.add_argument('--log-level', default='info', help='Logging level.')
 parser.add_argument('--write-logs', help='Specify file to write logs to after training')
 parser.add_argument('--cuda_device', default=0, type=int, help='set cuda device to use')
 
+# Ponder arguments
+parser.add_argument('--ponder_decoder', action='store_true', help='Use ACT pondering for the decocer')
+parser.add_argument('--max_ponder_steps', type=int, default=100, help='Hard maximum number of ponder steps')
+
 opt = parser.parse_args()
 IGNORE_INDEX=-1
 use_output_eos = not opt.ignore_output_eos
@@ -209,7 +213,9 @@ else:
                          full_focus=opt.full_focus,
                          bidirectional=opt.bidirectional,
                          rnn_cell=opt.rnn_cell,
-                         eos_id=tgt.eos_id, sos_id=tgt.sos_id)
+                         eos_id=tgt.eos_id, sos_id=tgt.sos_id,
+                         ponder=opt.ponder_decoder,
+                         max_ponder_steps=opt.max_ponder_steps)
     seq2seq = Seq2seq(encoder, decoder)
     seq2seq.to(device)
 

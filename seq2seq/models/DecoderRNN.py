@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from .attention import Attention, HardGuidance
 from .baseRNN import BaseRNN
 from .DecoderRNNModel import DecoderRNNModel
+from .Ponderer import Ponderer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -63,7 +64,7 @@ class DecoderRNN(nn.Module):
 
     def __init__(self, vocab_size, max_len, hidden_size, sos_id, eos_id, n_layers=1, rnn_cell='gru',
         bidirectional=False, input_dropout_p=0, dropout_p=0, use_attention=False,
-        attention_method=None, full_focus=False):
+        attention_method=None, full_focus=False, ponder=False, max_ponder_steps=100):
         super(DecoderRNN, self).__init__()
 
         self.bidirectional_encoder = bidirectional
@@ -73,6 +74,9 @@ class DecoderRNN(nn.Module):
         self.sos_id = sos_id
 
         self.decoder_model = DecoderRNNModel(vocab_size, max_len, hidden_size, sos_id, eos_id, n_layers, rnn_cell, bidirectional, input_dropout_p, dropout_p, use_attention, attention_method, full_focus)
+        
+        if ponder:
+            self.decoder_model = Ponderer(self.decoder_model, hidden_size, ponder_steps=max_ponder_steps)
 
     def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None,
                     function=F.log_softmax, teacher_forcing_ratio=0, provided_attention=None):
@@ -136,6 +140,14 @@ class DecoderRNN(nn.Module):
                     attention_method_kwargs['step'] = di
                 decoder_output, decoder_hidden, step_attn = self.decoder_model(decoder_input, decoder_hidden, encoder_outputs,
                                                                          function=function, **attention_method_kwargs)
+                
+                # If the decoder_model is a pondering model, it will return a list of attentions for each
+                # ponder step.
+                # For simplicity we will just store only the last for now, but we might want to/have to (for attention_loss)
+                # get a weighted average for example.
+                if isinstance(step_attn, list):
+                    step_attn = step_attn[-1]
+
                 # Remove the unnecessary dimension.
                 step_output = decoder_output.squeeze(1)
                 # Get the actual symbol
