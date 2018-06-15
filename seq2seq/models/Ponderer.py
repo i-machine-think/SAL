@@ -87,7 +87,7 @@ class Ponderer(nn.Module):
             # Select the elements in the batch that still need processing. Convert ByteTensor to indices
             batch_element_idx = batch_element_selector.nonzero().squeeze(1)
 
-            ponder_steps[batch_element_idx] += 1
+            ponder_steps[batch_element_idx] = ponder_steps[batch_element_idx] + 1
 
             # R(t) = 1 - Sum_{n-1} halt_prob_i
             # We thus set/overwrite it with the accumulative halting probabilities. For a batch element that
@@ -132,7 +132,7 @@ class Ponderer(nn.Module):
 
             # Within the currently already selected elements, check which ones would halt after this ponder step.
             next_accumulative_halt_probs = accumulative_halting_probabilities.clone()
-            next_accumulative_halt_probs[batch_element_idx] += halting_probabilities
+            next_accumulative_halt_probs[batch_element_idx] = next_accumulative_halt_probs + halting_probabilities
 
             # If we reached the maximum number of steps, we will replace the probability with the remainder for ALL elements
             if ponder_step == self.max_ponder_steps - 1:
@@ -155,7 +155,7 @@ class Ponderer(nn.Module):
             halting_probabilities[last_ponder_step_idx] = remainder
 
             # Add halting probability (or remainder) to the sum
-            accumulative_halting_probabilities[batch_element_idx] += halting_probabilities
+            accumulative_halting_probabilities[batch_element_idx] = accumulative_halting_probabilities[batch_element_idx] + halting_probabilities
 
             # For all non-halting ponder steps, add the state/cell/output, weighted by halting probability
             # For all terminating ponder steps, add the state/cell/output, weighted by remainder

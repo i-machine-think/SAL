@@ -14,7 +14,7 @@ from collections import OrderedDict
 import seq2seq
 from seq2seq.trainer import SupervisedTrainer
 from seq2seq.models import EncoderRNN, DecoderRNN, Seq2seq
-from seq2seq.loss import Perplexity, AttentionLoss, NLLLoss
+from seq2seq.loss import Perplexity, AttentionLoss, NLLLoss, PonderLoss
 from seq2seq.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, SymbolRewritingAccuracy
 from seq2seq.optim import Optimizer
 from seq2seq.dataset import SourceField, TargetField, AttentionField
@@ -254,6 +254,9 @@ losses = [NLLLoss(ignore_index=pad)]
 # loss_weights = [1.]
 loss_weights = [float(opt.xent_loss)]
 
+if opt.ponder_decoder:
+    losses.append(PonderLoss())
+    loss_weights.append(opt.ponder_penalty_scale)
 
 if opt.use_attention_loss:
     losses.append(AttentionLoss(ignore_index=IGNORE_INDEX))

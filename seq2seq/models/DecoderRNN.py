@@ -62,6 +62,7 @@ class DecoderRNN(nn.Module):
     KEY_ATTN_SCORE = 'attention_score'
     KEY_LENGTH = 'length'
     KEY_SEQUENCE = 'sequence'
+    KEY_PONDER = 'ponder_penalty'
 
     def __init__(self, vocab_size, max_len, hidden_size, sos_id, eos_id, n_layers=1, rnn_cell='gru',
                  bidirectional=False, input_dropout_p=0, dropout_p=0, use_attention=False,
@@ -77,7 +78,8 @@ class DecoderRNN(nn.Module):
         self.decoder_model = DecoderRNNModel(vocab_size, max_len, hidden_size, sos_id, eos_id, n_layers,
                                              rnn_cell, bidirectional, input_dropout_p, dropout_p, use_attention, attention_method, full_focus)
 
-        if ponder:
+        self.use_pondering = ponder
+        if self.use_pondering:
             self.decoder_model = Ponderer(model=self.decoder_model, hidden_size=hidden_size,
                                           output_size=vocab_size, max_ponder_steps=max_ponder_steps, eps=ponder_epsilon)
 
@@ -97,6 +99,7 @@ class DecoderRNN(nn.Module):
 
         decoder_outputs = []
         sequence_symbols = []
+        ponder_penalties = [] if self.use_pondering else None
         lengths = np.array([max_length] * batch_size)
 
         def decode(step, step_output, step_attn):
@@ -143,7 +146,10 @@ class DecoderRNN(nn.Module):
                     attention_method_kwargs['step'] = di
                 return_values = self.decoder_model(decoder_input, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
                 decoder_output, decoder_hidden, step_attn = return_values[:3]
-                ponder_penalty = return_values[3] if len(return_values) > 3 else 0
+
+                if len(return_values) > 3:
+                    ponder_penalty = return_values[3]
+                    ponder_penalties.append(ponder_penalty)
 
                 # If the decoder_model is a pondering model, it will return a list of attentions for each
                 # ponder step.
@@ -165,9 +171,7 @@ class DecoderRNN(nn.Module):
             # Forward step without unrolling
             if self.decoder_model.attention and isinstance(self.decoder_model.attention.method, HardGuidance):
                 attention_method_kwargs['step'] = -1
-            return_values = self.decoder_model(decoder_input, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
-            decoder_output, decoder_hidden, attn = return_values[:3]
-            ponder_penalty = return_values[3] if len(return_values) > 3 else 0
+            decoder_output, decoder_hidden, attn = self.decoder_model(decoder_input, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
 
             for di in range(decoder_output.size(1)):
                 step_output = decoder_output[:, di, :]
@@ -179,6 +183,8 @@ class DecoderRNN(nn.Module):
 
         ret_dict[DecoderRNN.KEY_SEQUENCE] = sequence_symbols
         ret_dict[DecoderRNN.KEY_LENGTH] = lengths.tolist()
+        if self.use_pondering:
+            ret_dict[DecoderRNN.KEY_PONDER] = ponder_penalties
 
         return decoder_outputs, decoder_hidden, ret_dict
 
