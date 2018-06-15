@@ -87,13 +87,11 @@ class Ponderer(nn.Module):
             # Select the elements in the batch that still need processing. Convert ByteTensor to indices
             batch_element_idx = batch_element_selector.nonzero().squeeze(1)
 
-            ponder_steps = ponder_steps.clone()
             ponder_steps[batch_element_idx] = ponder_steps[batch_element_idx] + 1
 
             # R(t) = 1 - Sum_{n-1} halt_prob_i
             # We thus set/overwrite it with the accumulative halting probabilities. For a batch element that
             # has N ponder steps, this will be updated N-1 times.
-            ponder_penalty = ponder_penalty.clone()
             ponder_penalty[batch_element_idx] = 1 - accumulative_halting_probabilities[batch_element_idx]
 
             # Indicate whether this is the first ponder step
@@ -158,17 +156,13 @@ class Ponderer(nn.Module):
             halting_probabilities[last_ponder_step_idx] = remainder
 
             # Add halting probability (or remainder) to the sum
-            accumulative_halting_probabilities = accumulative_halting_probabilities.clone()
             accumulative_halting_probabilities[batch_element_idx] = accumulative_halting_probabilities[batch_element_idx] + halting_probabilities
 
             # For all non-halting ponder steps, add the state/cell/output, weighted by halting probability
             # For all terminating ponder steps, add the state/cell/output, weighted by remainder
-            accumulative_states = accumulative_states.clone()
             accumulative_states[:, batch_element_idx] = halting_probabilities.view(1, -1, 1).expand_as(state) * state
             if is_lstm:
-                accumulative_cells = accumulative_cells.clone()
                 accumulative_cells[:, batch_element_idx] = halting_probabilities.view(1, -1, 1).expand_as(cell) * cell
-            accumulative_outputs = accumulative_outputs.clone()
             accumulative_outputs[batch_element_idx] = halting_probabilities.view(-1, 1).expand_as(model_output) * model_output
 
             # Stop if all batch elements have halted
