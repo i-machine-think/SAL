@@ -10,7 +10,7 @@
 
 Returns model_output, hidden, ponder_penalty, and a list of all extra return values
 
-Inspired by https://github.com/zphang/adaptive-computation-time-pytorch/blob/master/act/models.py#L248
+Inspired by https://github.com/zphang/adaptive-computation-time-pytorch/blob/master/act/models.py
 and https://github.com/imatge-upc/danifojo-2018-repeatrnn/blob/PyTorch/src/act_cell.py
 """
 

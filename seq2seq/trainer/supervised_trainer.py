@@ -19,7 +19,6 @@ from seq2seq.optim import Optimizer
 from seq2seq.util.checkpoint import Checkpoint
 from seq2seq.util.log import Log
 
-
 class SupervisedTrainer(object):
     """ The SupervisedTrainer class helps in setting up a training framework in a
     supervised setting.
@@ -33,7 +32,6 @@ class SupervisedTrainer(object):
         checkpoint_every (int, optional): number of epochs to checkpoint after, (default: 100)
         print_every (int, optional): number of iterations to print after, (default: 100)
     """
-
     def __init__(self, expt_dir='experiment', loss=[NLLLoss()], loss_weights=None, metrics=[], batch_size=64, eval_batch_size=128,
                  random_seed=None,
                  checkpoint_every=100, print_every=100):
@@ -118,6 +116,7 @@ class SupervisedTrainer(object):
                    input_vocab=data.fields[seq2seq.src_field_name].vocab,
                    output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
 
+
         for epoch in range(start_epoch, n_epochs + 1):
             log.info("Epoch: %d, Step: %d" % (epoch, step))
 
@@ -167,8 +166,8 @@ class SupervisedTrainer(object):
                     all_losses = ' '.join(['%s:\t %s\n' % (os.path.basename(name), m_logs[name]) for name in m_logs])
 
                     log_msg = 'Progress %d%%, %s' % (
-                        step / total_steps * 100,
-                        all_losses)
+                            step / total_steps * 100,
+                            all_losses)
 
                     log.info(log_msg)
 
@@ -180,22 +179,21 @@ class SupervisedTrainer(object):
 
                     max_eval_loss = max(loss_best)
                     if total_loss < max_eval_loss:
-                        index_max = loss_best.index(max_eval_loss)
-                        # rm prev model
-                        if best_checkpoints[index_max] is not None:
-                            shutil.rmtree(os.path.join(self.expt_dir, best_checkpoints[index_max]))
-                        best_checkpoints[index_max] = model_name
-                        loss_best[index_max] = total_loss
+                            index_max = loss_best.index(max_eval_loss)
+                            # rm prev model
+                            if best_checkpoints[index_max] is not None:
+                                shutil.rmtree(os.path.join(self.expt_dir, best_checkpoints[index_max]))
+                            best_checkpoints[index_max] = model_name
+                            loss_best[index_max] = total_loss
 
-                        # save model
-                        Checkpoint(model=model,
-                                   optimizer=self.optimizer,
-                                   epoch=epoch, step=step,
-                                   input_vocab=data.fields[seq2seq.src_field_name].vocab,
-                                   output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
+                            # save model
+                            Checkpoint(model=model,
+                                       optimizer=self.optimizer,
+                                       epoch=epoch, step=step,
+                                       input_vocab=data.fields[seq2seq.src_field_name].vocab,
+                                       output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
 
-            if step_elapsed == 0:
-                continue
+            if step_elapsed == 0: continue
 
             for loss in losses:
                 epoch_loss_avg[loss.log_name] = epoch_loss_total[loss.log_name] / min(steps_per_epoch, step - start_step)
@@ -212,7 +210,7 @@ class SupervisedTrainer(object):
                 log_msg += ", Dev set: " + log_
                 model.train(mode=True)
             else:
-                self.optimizer.update(epoch_loss_avg, epoch)  # TODO check if this makes sense!
+                self.optimizer.update(epoch_loss_avg, epoch) # TODO check if this makes sense!
 
             log.info(log_msg)
 
@@ -264,7 +262,7 @@ class SupervisedTrainer(object):
                 optims = {'adam': optim.Adam, 'adagrad': optim.Adagrad,
                           'adadelta': optim.Adadelta, 'adamax': optim.Adamax,
                           'rmsprop': optim.RMSprop, 'sgd': optim.SGD,
-                          None: optim.Adam}
+                           None:optim.Adam}
                 return optims[optim_name]
 
             self.optimizer = Optimizer(get_optim(optimizer)(model.parameters(), lr=learning_rate),
@@ -273,10 +271,10 @@ class SupervisedTrainer(object):
         self.logger.info("Optimizer: %s, Scheduler: %s" % (self.optimizer.optimizer, self.optimizer.scheduler))
 
         logs = self._train_epoches(data, model, num_epochs,
-                                   start_epoch, step, dev_data=dev_data,
-                                   monitor_data=monitor_data,
-                                   teacher_forcing_ratio=teacher_forcing_ratio,
-                                   top_k=top_k)
+                               start_epoch, step, dev_data=dev_data,
+                               monitor_data=monitor_data,
+                               teacher_forcing_ratio=teacher_forcing_ratio,
+                               top_k=top_k)
         return model, logs
 
     @staticmethod
@@ -296,7 +294,7 @@ class SupervisedTrainer(object):
     def get_losses(losses, metrics, step):
         total_loss = 0
         model_name = ''
-        log_msg = ''
+        log_msg= ''
 
         for metric in metrics:
             val = metric.get_val()

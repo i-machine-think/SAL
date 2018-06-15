@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch
 import numpy as np
 
-
 class Loss(object):
     """ Base class for encapsulation of the loss functions.
 
@@ -118,8 +117,7 @@ class Loss(object):
     def scale_loss(self, factor):
         """ Scale loss with a factor
         """
-        self.acc_loss *= factor
-
+        self.acc_loss*=factor
 
 class NLLLoss(Loss):
     """ Batch averaged negative log-likelihood loss.
@@ -158,7 +156,6 @@ class NLLLoss(Loss):
         self.acc_loss += self.criterion(outputs, target)
         self.norm_term += 1
 
-
 class Perplexity(NLLLoss):
     """ Language model perplexity loss.
 
@@ -192,7 +189,6 @@ class Perplexity(NLLLoss):
             return math.exp(Perplexity._MAX_EXP)
         return math.exp(nll)
 
-
 class AttentionLoss(NLLLoss):
     """ Cross entropy loss over attentions
 
@@ -217,11 +213,9 @@ class AttentionLoss(NLLLoss):
 class PonderLoss(Loss):
     """ Simple dummy loss that just minimizes the given variable
 
-    Args:
-        ignore_index (int, optional): index of token to be masked
     """
     _NAME = "Ponder Loss"
-    _SHORTNAME = "pond_loss"
+    _SHORTNAME = "ponder_loss"
     _INPUTS = "ponder_penalty"
     _TARGETS = 'decoder_output'
 
@@ -230,7 +224,6 @@ class PonderLoss(Loss):
                                          target=self._TARGETS, criterion=nn.NLLLoss())
 
     def eval_step(self, step_outputs, step_target):
-        assert(step_outputs.dim() == 1)
         # Take mean over batch
         self.acc_loss += torch.mean(step_outputs)
         self.norm_term += 1
@@ -238,6 +231,5 @@ class PonderLoss(Loss):
     def get_loss(self):
         if isinstance(self.acc_loss, int):
             return 0
-        # total loss for all batches
-        loss = self.acc_loss.item() / self.norm_term
-        return loss
+        else:
+            return self.acc_loss.item() / self.norm_term

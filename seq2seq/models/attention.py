@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
 class Attention(nn.Module):
     """
     Applies an attention mechanism on the output features from the decoder.
@@ -115,7 +114,7 @@ class Concat(nn.Module):
         # decoder_states --> (batch, dec_seqlen, hl_size)
         # encoder_states --> (batch, enc_seqlen, hl_size)
         batch_size, enc_seqlen, hl_size = encoder_states.size()
-        _,          dec_seqlen, _ = decoder_states.size()
+        _,          dec_seqlen, _       = decoder_states.size()
 
         # (batch, enc_seqlen, hl_size) -> (batch, dec_seqlen, enc_seqlen, hl_size)
         encoder_states_exp = encoder_states.unsqueeze(1)
@@ -164,7 +163,7 @@ class MLP(nn.Module):
         # decoder_states --> (batch, dec_seqlen, hl_size)
         # encoder_states --> (batch, enc_seqlen, hl_size)
         batch_size, enc_seqlen, hl_size = encoder_states.size()
-        _,          dec_seqlen, _ = decoder_states.size()
+        _,          dec_seqlen, _       = decoder_states.size()
 
         # (batch, enc_seqlen, hl_size) -> (batch, dec_seqlen, enc_seqlen, hl_size)
         encoder_states_exp = encoder_states.unsqueeze(1)
@@ -189,7 +188,6 @@ class MLP(nn.Module):
         attn = out.view(batch_size, dec_seqlen, enc_seqlen)
 
         return attn
-
 
 class HardGuidance(nn.Module):
     """

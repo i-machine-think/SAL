@@ -72,7 +72,7 @@ parser.add_argument('--ponder_epsilon', type=float, default=0.01, help='Epsilon 
 parser.add_argument('--ponder_penalty_scale', type=float, default=0.01, help='Scale of the ponder penalty loss')
 
 opt = parser.parse_args()
-IGNORE_INDEX = -1
+IGNORE_INDEX=-1
 use_output_eos = not opt.ignore_output_eos
 
 LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
@@ -96,8 +96,8 @@ if opt.use_attention_loss and opt.attention_method == 'hard':
     parser.error("Can't use attention loss in combination with non-differentiable hard attention method.")
 
 if torch.cuda.is_available():
-    logging.info("Cuda device set to %i" % opt.cuda_device)
-    torch.cuda.set_device(opt.cuda_device)
+        logging.info("Cuda device set to %i" % opt.cuda_device)
+        torch.cuda.set_device(opt.cuda_device)
 
 if opt.attention:
     if not opt.attention_method:
@@ -117,10 +117,8 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
 
 max_len = opt.max_len
 
-
 def len_filter(example):
     return len(example.src) <= max_len and len(example.tgt) <= max_len
-
 
 # generate training and testing data
 train = torchtext.data.TabularDataset(
@@ -153,16 +151,16 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
     if len(train) > 0:
         if 'attn' not in vars(train[0]):
             raise Exception("AttentionField not found in train data")
-        tgt_len = len(vars(train[0])['tgt']) - 1  # -1 for SOS
-        attn_len = len(vars(train[0])['attn']) - 1  # -1 for preprended ignore_index
+        tgt_len = len(vars(train[0])['tgt']) - 1 # -1 for SOS
+        attn_len = len(vars(train[0])['attn']) - 1 # -1 for preprended ignore_index
         if attn_len != tgt_len:
             raise Exception("Length of output sequence does not equal length of attention sequence in train data")
 
     if dev is not None and len(dev) > 0:
         if 'attn' not in vars(dev[0]):
             raise Exception("AttentionField not found in dev data")
-        tgt_len = len(vars(dev[0])['tgt']) - 1  # -1 for SOS
-        attn_len = len(vars(dev[0])['attn']) - 1  # -1 for preprended ignore_index
+        tgt_len = len(vars(dev[0])['tgt']) - 1 # -1 for SOS
+        attn_len = len(vars(dev[0])['attn']) - 1 # -1 for preprended ignore_index
         if attn_len != tgt_len:
             raise Exception("Length of output sequence does not equal length of attention sequence in dev data.")
 
@@ -170,8 +168,8 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
         if len(m) > 0:
             if 'attn' not in vars(m[0]):
                 raise Exception("AttentionField not found in monitor data")
-            tgt_len = len(vars(m[0])['tgt']) - 1  # -1 for SOS
-            attn_len = len(vars(m[0])['attn']) - 1  # -1 for preprended ignore_index
+            tgt_len = len(vars(m[0])['tgt']) - 1 # -1 for SOS
+            attn_len = len(vars(m[0])['attn']) - 1 # -1 for preprended ignore_index
             if attn_len != tgt_len:
                 raise Exception("Length of output sequence does not equal length of attention sequence in monitor data.")
 

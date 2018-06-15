@@ -1,4 +1,5 @@
 import random
+
 import numpy as np
 
 import torch
@@ -87,6 +88,14 @@ class DecoderRNN(nn.Module):
             self.decoder_model = Ponderer(model=self.decoder_model, hidden_size=hidden_size,
                                           output_size=vocab_size, max_ponder_steps=max_ponder_steps, eps=ponder_epsilon)
 
+    def forward_step(self, input_var, decoder_hidden, encoder_outputs, function, **attention_method_kwargs):
+        embedded = self.embedding(input_var)
+        embedded = self.input_dropout(embedded)
+        return_values = self.decoder_model(embedded, decoder_hidden, encoder_outputs, function, **attention_method_kwargs)
+
+        return return_values
+
+
     def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None,
                 function=F.log_softmax, teacher_forcing_ratio=0, provided_attention=None):
 
@@ -96,7 +105,6 @@ class DecoderRNN(nn.Module):
 
         inputs, batch_size, max_length = self._validate_args(inputs, encoder_hidden, encoder_outputs,
                                                              function, teacher_forcing_ratio)
-
         decoder_hidden = self._init_state(encoder_hidden)
 
         use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
@@ -149,9 +157,7 @@ class DecoderRNN(nn.Module):
                 if self.decoder_model.attention and isinstance(self.decoder_model.attention.method, HardGuidance):
                     attention_method_kwargs['step'] = di
 
-                embedded = self.embedding(decoder_input)
-                embedded = self.input_dropout(embedded)
-                return_values = self.decoder_model(embedded, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
+                return_values = self.forward_step(decoder_input, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
                 decoder_output, decoder_hidden, step_attn = return_values[:3]
 
                 if len(return_values) > 3:
@@ -179,9 +185,7 @@ class DecoderRNN(nn.Module):
             if self.decoder_model.attention and isinstance(self.decoder_model.attention.method, HardGuidance):
                 attention_method_kwargs['step'] = -1
 
-            embedded = self.embedding(decoder_input)
-            embedded = self.input_dropout(embedded)
-            decoder_output, decoder_hidden, attn = self.decoder_model(embedded, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
+            decoder_output, decoder_hidden, attn = self.forward_step(decoder_input, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
 
             for di in range(decoder_output.size(1)):
                 step_output = decoder_output[:, di, :]
@@ -237,11 +241,10 @@ class DecoderRNN(nn.Module):
         if inputs is None:
             if teacher_forcing_ratio > 0:
                 raise ValueError("Teacher forcing has to be disabled (set 0) when no inputs is provided.")
-            inputs = torch.tensor([self.sos_id] * batch_size, dtype=torch.long,
-                                  device=device).view(batch_size, 1)
+            inputs = torch.tensor([self.sos_id] * batch_size, dtype=torch.long, device=device).view(batch_size, 1)
 
             max_length = self.max_length
         else:
-            max_length = inputs.size(1) - 1  # minus the start of sequence symbol
+            max_length = inputs.size(1) - 1 # minus the start of sequence symbol
 
         return inputs, batch_size, max_length
