@@ -69,7 +69,7 @@ class Ponderer(nn.Module):
         accumulative_outputs = torch.zeros([batch_size, self.output_size], device=device)
 
         ponder_steps = torch.zeros([batch_size], device=device)
-        ponder_penalty = torch.zeros([batch_size], device=device)
+        ponder_penalty = torch.zeros([batch_size], device=device, requires_grad=True).clone()
 
         extra_return_values = []  # If the underlying model returns more than expected, we just add it to a list
         # We might want to deal with this in a different way. Maybe automatically take weighted average if it is a Tensor?
@@ -131,14 +131,13 @@ class Ponderer(nn.Module):
                 halting_probabilities = halting_probabilities.squeeze(1)
 
             # Within the currently already selected elements, check which ones would halt after this ponder step.
-            next_accumulative_halt_probs = accumulative_halting_probabilities.clone()
-            next_accumulative_halt_probs[batch_element_idx] = next_accumulative_halt_probs + halting_probabilities
+            next_accumulative_halt_probs = accumulative_halting_probabilities[batch_element_idx] + halting_probabilities
 
             # If we reached the maximum number of steps, we will replace the probability with the remainder for ALL elements
             if ponder_step == self.max_ponder_steps - 1:
-                last_ponder_step_selector = batch_element_selector
+                last_ponder_step_selector = torch.ones_like(batch_element_idx)
             else:
-                last_ponder_step_selector = (next_accumulative_halt_probs[batch_element_idx] >= 1 - self.eps)
+                last_ponder_step_selector = (next_accumulative_halt_probs >= 1 - self.eps)
 
             last_ponder_step_idx = last_ponder_step_selector.nonzero()
             # Only has the extra dimension if there actually are halting elements
@@ -171,7 +170,12 @@ class Ponderer(nn.Module):
                 break
 
         # We add the decoder_length dimension again
-        accumulative_outputs = accumulative_outputs.unsqueeze(1)
+        model_output = accumulative_outputs.unsqueeze(1)
+
+        if is_lstm:
+            hidden = accumulative_states, accumulative_cells
+        else:
+            hidden = accumulative_states
 
         # rho(t) = N(t) + R(t)
         ponder_penalty = ponder_steps + ponder_penalty
