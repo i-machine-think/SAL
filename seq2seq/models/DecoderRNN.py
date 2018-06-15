@@ -75,6 +75,10 @@ class DecoderRNN(nn.Module):
         self.eos_id = eos_id
         self.sos_id = sos_id
 
+        self.input_dropout_p = input_dropout_p
+        self.input_dropout = nn.Dropout(p=input_dropout_p)
+        self.embedding = nn.Embedding(vocab_size, hidden_size)
+
         self.decoder_model = DecoderRNNModel(vocab_size, max_len, hidden_size, sos_id, eos_id, n_layers,
                                              rnn_cell, bidirectional, input_dropout_p, dropout_p, use_attention, attention_method, full_focus)
 
@@ -144,7 +148,10 @@ class DecoderRNN(nn.Module):
                 # Perform one forward step
                 if self.decoder_model.attention and isinstance(self.decoder_model.attention.method, HardGuidance):
                     attention_method_kwargs['step'] = di
-                return_values = self.decoder_model(decoder_input, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
+
+                embedded = self.embedding(decoder_input)
+                embedded = self.input_dropout(embedded)
+                return_values = self.decoder_model(embedded, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
                 decoder_output, decoder_hidden, step_attn = return_values[:3]
 
                 if len(return_values) > 3:
@@ -171,7 +178,10 @@ class DecoderRNN(nn.Module):
             # Forward step without unrolling
             if self.decoder_model.attention and isinstance(self.decoder_model.attention.method, HardGuidance):
                 attention_method_kwargs['step'] = -1
-            decoder_output, decoder_hidden, attn = self.decoder_model(decoder_input, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
+
+            embedded = self.embedding(decoder_input)
+            embedded = self.input_dropout(embedded)
+            decoder_output, decoder_hidden, attn = self.decoder_model(embedded, decoder_hidden, encoder_outputs, function=function, **attention_method_kwargs)
 
             for di in range(decoder_output.size(1)):
                 step_output = decoder_output[:, di, :]

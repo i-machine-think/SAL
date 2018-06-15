@@ -53,9 +53,7 @@ class Ponderer(nn.Module):
 
         is_lstm = isinstance(hidden, tuple)
 
-        # TODO: This is not correct. It is now of dimenstion [batch x decoder_length] but should actually be [batch x decoder_length x input_dimension]
-        # Before calling this function, we should already have embeddings instead of input tokens
-        batch_size, decoder_length = input.size()
+        batch_size, decoder_length, input_size = input.size()
         n_layers = hidden[0].size(0) if is_lstm else hidden.size()
 
         assert decoder_length == 1, "Ponderer currently only works for unrolled RNN"
@@ -77,8 +75,8 @@ class Ponderer(nn.Module):
         # For all elements in the batch, set one element to either 0 or 1 to indicate whether it is the first ponder step
         input0 = input.clone()
         input1 = input.clone()
-        input0[:, 0] = 0
-        input1[:, 0] = 1
+        input0[:, :, 0] = 0
+        input1[:, :, 0] = 1
 
         # ByteTensor containing 1's for all elements that have not halted yet
         batch_element_selector = (accumulative_halting_probabilities < 1 - self.eps)
@@ -100,15 +98,9 @@ class Ponderer(nn.Module):
             else:
                 input = input0
 
-            # # Only select the necessary batch elements (which is the second dimension for the hidden states. n_layers is first dimension)
-            # selected_input = input[batch_element_idx]
-            # if is_lstm:
-            #     selected_hidden = hidden[0][:, batch_element_idx, :], hidden[1][:, batch_element_idx, :]
-            # else:
-            #     selected_hidden = hidden[:, batch_element_idx, :]
-
             # Perform single ponder step
-            # TODO: Why can't we use selected_hidden
+            # We can't slice with batch_element_idx to reduce the number of computations as the attention mechanism
+            # would have no way of knowing which decoder batch element to align with which encoder batch element
             return_values = self.model(input, hidden, *args, **kwargs)
 
             # Extract return values

@@ -47,26 +47,23 @@ class DecoderRNNModel(BaseRNN):
             if self.full_focus:
                 self.ffocus_merge = nn.Linear(2 * self.hidden_size, self.hidden_size)
 
-    def forward(self, input_var, hidden, encoder_outputs, function, **attention_method_kwargs):
+    def forward(self, embedded, hidden, encoder_outputs, function, **attention_method_kwargs):
         """
         Performs one or multiple forward decoder steps.
-        
+
         Args:
-            input_var (torch.tensor): Variable containing the input(s) to the decoder RNN
+            embedded (torch.tensor): Variable containing the input(s) to the decoder RNN
             hidden (torch.tensor): Variable containing the previous decoder hidden state.
             encoder_outputs (torch.tensor): Variable containing the target outputs of the decoder RNN
             function (torch.tensor): Activation function over the last output of the decoder RNN at every time step.
             **attention_method_kwargs: Extra arguments for the attention method
-        
+
         Returns:
             predicted_softmax: The output softmax distribution at every time step of the decoder RNN
             hidden: The hidden state at every time step of the decoder RNN
             attn: The attention distribution at every time step of the decoder RNN
         """
-        batch_size = input_var.size(0)
-        output_size = input_var.size(1)
-        embedded = self.embedding(input_var)
-        embedded = self.input_dropout(embedded)
+        batch_size, output_size, _ = embedded.size()
 
         if self.use_attention == 'pre-rnn':
             h = hidden
