@@ -357,3 +357,171 @@ class SymbolRewritingAccuracy(Metric):
             # Check whether the prediction actually comes from the grammar
             if self.correct(grammar, prediction_correct_length):
                 self.seq_correct += 1
+
+class VerifyProduceAccuracy(Metric):
+    """
+    Batch average of SciL produce micortask task sequence accuracy.
+    This metric is very specific for the produce micro task
+    For one input, multiple outputs can be correct.
+
+    Args:
+        input_vocab (torchtext.vocab): Input dictionary
+        output_vocab (torchtext.vocab): Output dictionary
+        use_output_eos (bool): Boolean to indicate whether an output EOS should be present
+        input_pad_symbol (str): Input PAD symbol
+        output_sos_symbol (str): Output SOS symbol
+        output_pad_symbol (str): Output PAD symbol
+        output_eos_symbol (str): Output EOS symbol
+        output_unk_symbol (str): Output UNK symbol
+    """
+
+    _NAME = "Microtask Accuracy"
+    _SHORTNAME = "vp_tsk_acc"
+    _INPUT = "seqlist"
+
+    def __init__(self, input_vocab, output_vocab, use_output_eos, input_pad_symbol, output_sos_symbol, output_pad_symbol, output_eos_symbol, output_unk_symbol):
+        self.input_vocab = input_vocab
+        self.output_vocab = output_vocab
+
+        self.use_output_eos = use_output_eos
+
+        # instead of passing all these arguments, we could also hard-code to use <sos>, <pad>, <unk> and <eos>
+        self.input_pad_symbol = input_pad_symbol
+        self.output_sos_symbol = output_sos_symbol
+        self.output_pad_symbol = output_pad_symbol
+        self.output_eos_symbol = output_eos_symbol
+        self.output_unk_symbol = output_unk_symbol
+
+        self.seq_correct = 0
+        self.seq_total = 0
+
+        super(VerifyProduceAccuracy, self).__init__(self._NAME, self._SHORTNAME, self._INPUT)
+
+    def get_val(self):
+        """
+        Get the average accuracy metric of all processed batches
+        Returns:
+            float: average accuracy
+        """
+        if self.seq_total != 0:
+            return float(self.seq_correct) / self.seq_total
+        else:
+            return 0
+
+    def reset(self):
+        """
+        Reset after all batches have been processed
+        """
+        self.seq_correct = 0
+        self.seq_total = 0
+
+    def correct(self, grammar, prediction):
+        '''
+        Return True if the target is a valid output given the source
+        Args:
+            grammar (list(str)): List of symbols of the grammar
+            prediction (list(str)): List of symbols of the prediction
+        Returns:
+            bool: whether the prediction is coming from the grammar
+        '''
+        all_correct = False
+
+        any_in = lambda a, b: any(i in b for i in a)
+        all_in = lambda a, b: all(i in b for i in a)
+        not_in = lambda a,b: frozenset(a).isdisjoint(frozenset(b))
+        if ('or' in grammar):
+            target = list(set(grammar) - set(['produce']))
+            all_correct = any_in(prediction, target)
+        elif('and' in grammar and 'not' not in grammar):
+            target = list(set(grammar) - set(['produce', 'and']))
+            all_correct = all_in(prediction, target)
+        elif('not' in grammar):
+            target = list(set(grammar) - set(['produce']))
+            check1 = []
+            for i in range(1, len(target)):
+                if(target[i-1]=='not'):
+                    check1.append(target[i])
+            if(not_in(prediction, check1)):
+                ops = ['and', 'not']
+                ops.extend(check1)
+                check2 = list(set(target) - set(ops))
+                all_correct = True if all_in(check2, prediction) else False
+            else:
+                all_correct = False
+
+        return all_correct
+
+    def eval_batch(self, outputs, targets):
+        """
+        Evaluates one batch of inputs (grammar) and checks whether the predictions are correct in the
+        specified grammar.
+        Note that we assume that the input grammar's do not contain any EOS-like symbol
+        Args:
+            outputs (list(torch.tensor)): Contains the predictions of the model. List of length max_output_length, where each element is a tensor of length batch_size
+            targets (dict): Dictionary containing the grammars
+        """
+
+        # batch_size X N variable containing the indices of the model's input,
+        # where N is the longest input
+        input_variable = targets['encoder_input']
+
+        batch_size = input_variable.size(0)
+
+        # Convert to batch_size x M variable containing the indices of the model's output, where M
+        # is the longest output
+        predictions = torch.stack(outputs, dim=1).view(batch_size, -1)
+
+        # Current implementation does not allow batch-wise evaluation
+        for i_batch_element in range(batch_size):
+            # We start by counting the sequence to the total.
+            # Next we go through multiple checks for incorrectness.
+            # If all these test fail, we consider the sequence correct.
+            self.seq_total += 1
+
+            # Extract the current example and move to cpu
+            grammar = input_variable[i_batch_element, :].data.cpu().numpy()
+            prediction = predictions[i_batch_element, :].data.cpu().numpy()
+
+
+            # Convert indices to strings
+            # Remove all padding from the grammar.
+            grammar = [self.input_vocab.itos[token] for token in grammar if token !=
+                       self.input_vocab.itos[token] != self.input_pad_symbol]
+            prediction = [self.output_vocab.itos[token] for token in prediction]
+
+            # print('grammar:')
+            # print(grammar)
+            # input()
+            # print('predictions:')
+            # print(prediction)
+            # input()
+
+            #if the input is a verify task then just check the binary output and move to next
+            #input in the batch
+            if (grammar[0] == 'verify'):
+                if prediction[0] == 'yes':
+                    self.seq_correct +=1
+                continue
+
+            # # The first prediction after the actual output should be EOS
+            # if self.use_output_eos and prediction[-1] != self.output_eos_symbol:
+            #     continue
+
+            # Remove EOS (and possible padding)
+            prediction_correct_length = prediction #[:-1]
+
+            # If the EOS symbol is present in the prediction, this means that the prediction was too
+            # short.
+            # Since SOS, PAD and UNK are also part of the output dictionary, these can technically
+            # also be predicted by the model, especially at the beginning of training due to random
+            # weight initialization. Since these render the output incorrect and cause an error in
+            # correct(), we check for their presence here.
+            if  self.output_eos_symbol in prediction_correct_length or \
+                    self.output_sos_symbol in prediction_correct_length or \
+                    self.output_pad_symbol in prediction_correct_length or \
+                    self.output_unk_symbol in prediction_correct_length:
+                continue
+
+            # Check whether the prediction actually comes from the grammar
+            if self.correct(grammar, prediction_correct_length):
+                self.seq_correct += 1

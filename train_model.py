@@ -15,7 +15,7 @@ import seq2seq
 from seq2seq.trainer import SupervisedTrainer
 from seq2seq.models import EncoderRNN, DecoderRNN, Seq2seq
 from seq2seq.loss import Perplexity, AttentionLoss, NLLLoss
-from seq2seq.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, SymbolRewritingAccuracy
+from seq2seq.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, VerifyProduceAccuracy
 from seq2seq.optim import Optimizer
 from seq2seq.dataset import SourceField, TargetField, AttentionField
 from seq2seq.evaluator import Predictor, Evaluator
@@ -221,16 +221,16 @@ output_vocabulary = output_vocab.itos
 
 # random.seed(3)
 
-# print "Input vocabulary:"
+# print ("Input vocabulary:")
 # for i, word in enumerate(input_vocabulary):
-#     print i, word
-# 
-# print "Output vocabulary:"
+#     print (i, word)
+#
+# print ("Output vocabulary:")
 # for i, word in enumerate(output_vocabulary):
-#     print i, word
-# 
-# raw_input()
-# 
+#     print (i, word)
+#
+# input()
+
 
 ##############################################################################
 # train model
@@ -252,15 +252,15 @@ for loss in losses:
 metrics = [WordAccuracy(ignore_index=pad), SequenceAccuracy(ignore_index=pad), FinalTargetAccuracy(ignore_index=pad, eos_id=tgt.eos_id)]
 # Since we need the actual tokens to determine k-grammar accuracy,
 # we also provide the input and output vocab and relevant special symbols
-# metrics.append(SymbolRewritingAccuracy(
-#     input_vocab=input_vocab,
-#     output_vocab=output_vocab,
-#     use_output_eos=use_output_eos,
-#     input_pad_symbol=src.pad_token,
-#     output_sos_symbol=tgt.SYM_SOS,
-#     output_pad_symbol=tgt.pad_token,
-#     output_eos_symbol=tgt.SYM_EOS,
-#     output_unk_symbol=tgt.unk_token))
+metrics.append(VerifyProduceAccuracy(
+    input_vocab=input_vocab,
+    output_vocab=output_vocab,
+    use_output_eos=use_output_eos,
+    input_pad_symbol=src.pad_token,
+    output_sos_symbol=tgt.SYM_SOS,
+    output_pad_symbol=tgt.pad_token,
+    output_eos_symbol=tgt.SYM_EOS,
+    output_unk_symbol=tgt.unk_token))
 
 checkpoint_path = os.path.join(opt.output_dir, opt.load_checkpoint) if opt.resume else None
 
