@@ -72,7 +72,7 @@ parser.add_argument('--ponder_epsilon', type=float, default=0.01, help='Epsilon 
 parser.add_argument('--ponder_penalty_scale', type=float, default=0.01, help='Scale of the ponder penalty loss')
 
 opt = parser.parse_args()
-IGNORE_INDEX=-1
+IGNORE_INDEX = -1
 use_output_eos = not opt.ignore_output_eos
 
 LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
@@ -96,8 +96,8 @@ if opt.use_attention_loss and opt.attention_method == 'hard':
     parser.error("Can't use attention loss in combination with non-differentiable hard attention method.")
 
 if torch.cuda.is_available():
-        logging.info("Cuda device set to %i" % opt.cuda_device)
-        torch.cuda.set_device(opt.cuda_device)
+    logging.info("Cuda device set to %i" % opt.cuda_device)
+    torch.cuda.set_device(opt.cuda_device)
 
 if opt.attention:
     if not opt.attention_method:
@@ -117,8 +117,10 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
 
 max_len = opt.max_len
 
+
 def len_filter(example):
     return len(example.src) <= max_len and len(example.tgt) <= max_len
+
 
 # generate training and testing data
 train = torchtext.data.TabularDataset(
@@ -151,16 +153,16 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
     if len(train) > 0:
         if 'attn' not in vars(train[0]):
             raise Exception("AttentionField not found in train data")
-        tgt_len = len(vars(train[0])['tgt']) - 1 # -1 for SOS
-        attn_len = len(vars(train[0])['attn']) - 1 # -1 for preprended ignore_index
+        tgt_len = len(vars(train[0])['tgt']) - 1  # -1 for SOS
+        attn_len = len(vars(train[0])['attn']) - 1  # -1 for preprended ignore_index
         if attn_len != tgt_len:
             raise Exception("Length of output sequence does not equal length of attention sequence in train data")
 
     if dev is not None and len(dev) > 0:
         if 'attn' not in vars(dev[0]):
             raise Exception("AttentionField not found in dev data")
-        tgt_len = len(vars(dev[0])['tgt']) - 1 # -1 for SOS
-        attn_len = len(vars(dev[0])['attn']) - 1 # -1 for preprended ignore_index
+        tgt_len = len(vars(dev[0])['tgt']) - 1  # -1 for SOS
+        attn_len = len(vars(dev[0])['attn']) - 1  # -1 for preprended ignore_index
         if attn_len != tgt_len:
             raise Exception("Length of output sequence does not equal length of attention sequence in dev data.")
 
@@ -168,8 +170,8 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
         if len(m) > 0:
             if 'attn' not in vars(m[0]):
                 raise Exception("AttentionField not found in monitor data")
-            tgt_len = len(vars(m[0])['tgt']) - 1 # -1 for SOS
-            attn_len = len(vars(m[0])['attn']) - 1 # -1 for preprended ignore_index
+            tgt_len = len(vars(m[0])['tgt']) - 1  # -1 for SOS
+            attn_len = len(vars(m[0])['attn']) - 1  # -1 for preprended ignore_index
             if attn_len != tgt_len:
                 raise Exception("Length of output sequence does not equal length of attention sequence in monitor data.")
 
@@ -222,8 +224,10 @@ else:
     seq2seq = Seq2seq(encoder, decoder)
     seq2seq.to(device)
 
-    for param in seq2seq.parameters():
-        param.data.uniform_(-0.08, 0.08)
+    for param in seq2seq.named_parameters():
+        name, data = param[0], param[1].data
+        if "halt_layer.bias" not in name:
+            data.uniform_(-0.08, 0.08)
 
 input_vocabulary = input_vocab.itos
 output_vocabulary = output_vocab.itos
@@ -233,13 +237,13 @@ output_vocabulary = output_vocab.itos
 # print "Input vocabulary:"
 # for i, word in enumerate(input_vocabulary):
 #     print i, word
-# 
+#
 # print "Output vocabulary:"
 # for i, word in enumerate(output_vocabulary):
 #     print i, word
-# 
+#
 # raw_input()
-# 
+#
 
 ##############################################################################
 # train model
@@ -256,7 +260,7 @@ if opt.use_attention_loss:
     loss_weights.append(opt.scale_attention_loss)
 
 for loss in losses:
-  loss.to(device)
+    loss.to(device)
 
 metrics = [WordAccuracy(ignore_index=pad), SequenceAccuracy(ignore_index=pad), FinalTargetAccuracy(ignore_index=pad, eos_id=tgt.eos_id)]
 # Since we need the actual tokens to determine k-grammar accuracy,
@@ -274,21 +278,21 @@ metrics = [WordAccuracy(ignore_index=pad), SequenceAccuracy(ignore_index=pad), F
 checkpoint_path = os.path.join(opt.output_dir, opt.load_checkpoint) if opt.resume else None
 
 # create trainer
-t = SupervisedTrainer(loss=losses, metrics=metrics, 
+t = SupervisedTrainer(loss=losses, metrics=metrics,
                       loss_weights=loss_weights,
                       batch_size=opt.batch_size,
                       eval_batch_size=opt.eval_batch_size,
                       checkpoint_every=opt.save_every,
                       print_every=opt.print_every, expt_dir=opt.output_dir)
 
-seq2seq, logs = t.train(seq2seq, train, 
-                  num_epochs=opt.epochs, dev_data=dev,
-                  monitor_data=monitor_data,
-                  optimizer=opt.optim,
-                  teacher_forcing_ratio=opt.teacher_forcing_ratio,
-                  learning_rate=opt.lr,
-                  resume=opt.resume,
-                  checkpoint_path=checkpoint_path)
+seq2seq, logs = t.train(seq2seq, train,
+                        num_epochs=opt.epochs, dev_data=dev,
+                        monitor_data=monitor_data,
+                        optimizer=opt.optim,
+                        teacher_forcing_ratio=opt.teacher_forcing_ratio,
+                        learning_rate=opt.lr,
+                        resume=opt.resume,
+                        checkpoint_path=checkpoint_path)
 
 if opt.write_logs:
     output_path = os.path.join(opt.output_dir, opt.write_logs)
