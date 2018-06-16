@@ -24,7 +24,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Ponderer(nn.Module):
-    def __init__(self, model, hidden_size, output_size, max_ponder_steps, eps):
+    def __init__(self, model, hidden_size, output_size, max_ponder_steps, eps, optimize=False):
         super(Ponderer, self).__init__()
 
         self.model = model
@@ -32,6 +32,7 @@ class Ponderer(nn.Module):
         self.output_size = output_size
         self.max_ponder_steps = max_ponder_steps
         self.eps = eps
+        self.optimize = optimize
 
         self.halt_layer = nn.Linear(hidden_size, 1)
         # Avoid too long pondering at start of training. Do not change name, as otherwise it would be reinitialized in train_model.py
@@ -94,20 +95,42 @@ class Ponderer(nn.Module):
             else:
                 input = input0
 
+            # In, for example, the encoder, we can optimize by not executing the recurrent model for batch elements that have halted.
+            # For the decoder, for example, this is not possible since it uses an attention mechanism that would have no way of knowing
+            # which decoder batch element to align with which encoder batch element.
+            if self.optimize:
+                # Only select the necessary batch elements (which is the second dimension for the hidden states. n_layers is first dimension)
+                selected_input = input[batch_element_idx]
+                print(batch_element_idx.size())
+                if is_lstm:
+                    selected_hidden = hidden[0][:, batch_element_idx, :], hidden[1][:, batch_element_idx, :]
+                else:
+                    selected_hidden = hidden[:, batch_element_idx, :]
+            else:
+                # We can't slice with batch_element_idx to reduce the number of computations as the attention mechanism
+                # would have no way of knowing which decoder batch element to align with which encoder batch element
+                selected_input = input
+                selected_hidden = hidden
+
             # Perform single ponder step
-            # We can't slice with batch_element_idx to reduce the number of computations as the attention mechanism
-            # would have no way of knowing which decoder batch element to align with which encoder batch element
-            return_values = self.model(input, hidden, *args, **kwargs)
+            return_values = self.model(selected_input, selected_hidden, *args, **kwargs)
 
             # Extract return values
             model_output, state = return_values[0], return_values[1]
             model_output = model_output.squeeze(1)  # We used unrolled RNN and can remove the time step dimension
-            model_output = model_output[batch_element_idx]  # Select only relevant
-            if isinstance(hidden, tuple):
-                # Select only relevant. First dimension is n_layers. Second dimenstion is batch size
-                state, cell = state[0][:, batch_element_idx, :], state[1][:, batch_element_idx, :]
-            else:
+
+            # Unpack state if it is LSTM
+            if is_lstm:
+                state, cell = state
+
+            # Select only relevant outputs/states when we don't optimize.
+            # In that case, we would have executed the entire batch, but we only need some.
+            if not self.optimize:
                 state = state[:, batch_element_idx, :]
+                if is_lstm:
+                    cell = cell[:, batch_element_idx, :]
+                model_output = model_output[batch_element_idx]
+
             if len(return_values) > 2:
                 extra_return_values.append(return_values[2:])
 

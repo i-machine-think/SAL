@@ -56,7 +56,7 @@ class EncoderRNN(BaseRNN):
 
         self.use_pondering = ponder
         if self.use_pondering:
-            self.rnn = Ponderer(model=self.rnn, hidden_size=hidden_size, output_size=hidden_size, max_ponder_steps=max_ponder_steps, eps=ponder_epsilon)
+            self.rnn = Ponderer(model=self.rnn, hidden_size=hidden_size, output_size=hidden_size, max_ponder_steps=max_ponder_steps, eps=ponder_epsilon, optimize=True)
 
     def forward(self, input_var, input_lengths=None):
         """
