@@ -85,11 +85,13 @@ class Ponderer(nn.Module):
             # Select the elements in the batch that still need processing. Convert ByteTensor to indices
             batch_element_idx = batch_element_selector.nonzero().squeeze(1)
 
+            # Increment the nuber of executed ponder steps
             ponder_steps[batch_element_idx] = ponder_steps[batch_element_idx] + 1
 
-            # R(t) = 1 - Sum_{n-1} halt_prob_i
-            # We thus set/overwrite it with the accumulative halting probabilities. For a batch element that
-            # has N ponder steps, this will be updated N-1 times.
+            # R(t) = 1 - Sum_{n-1} (halt_prob_i)
+            # We thus set/overwrite it with 1 - accumulative halting probabilities.
+            # This is overwritten for every step up until the step at which it will terminate.
+            # Thus it will contain 1 minus all halting probability, excluded the last probability
             ponder_penalty[batch_element_idx] = 1 - accumulative_halting_probabilities[batch_element_idx]
 
             # Indicate whether this is the first ponder step
@@ -123,14 +125,15 @@ class Ponderer(nn.Module):
                 halting_probabilities = halting_probabilities.squeeze(1)
 
             # Within the currently already selected elements, check which ones would halt after this ponder step.
-            next_accumulative_halt_probs = accumulative_halting_probabilities[batch_element_idx] + halting_probabilities
-
             # If we reached the maximum number of steps, we will replace the probability with the remainder for ALL elements
             if ponder_step == self.max_ponder_steps - 1:
                 last_ponder_step_selector = torch.ones_like(batch_element_idx)
+            # Else, we will select the elements (within already selected) that would halt
             else:
+                next_accumulative_halt_probs = accumulative_halting_probabilities[batch_element_idx] + halting_probabilities
                 last_ponder_step_selector = (next_accumulative_halt_probs >= 1 - self.eps)
 
+            # Convert ByteTensor selector to indices
             last_ponder_step_idx = last_ponder_step_selector.nonzero()
             # Only has the extra dimension if there actually are halting elements
             if last_ponder_step_idx.dim() > 1:
@@ -171,7 +174,5 @@ class Ponderer(nn.Module):
 
         # rho(t) = N(t) + R(t)
         ponder_penalty = ponder_steps + ponder_penalty
-
-        print(ponder_penalty[0])
 
         return model_output, hidden, extra_return_values, ponder_penalty
