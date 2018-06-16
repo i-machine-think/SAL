@@ -101,7 +101,6 @@ class Ponderer(nn.Module):
             if self.optimize:
                 # Only select the necessary batch elements (which is the second dimension for the hidden states. n_layers is first dimension)
                 selected_input = input[batch_element_idx]
-                print(batch_element_idx.size())
                 if is_lstm:
                     selected_hidden = hidden[0][:, batch_element_idx, :], hidden[1][:, batch_element_idx, :]
                 else:
@@ -119,17 +118,26 @@ class Ponderer(nn.Module):
             model_output, state = return_values[0], return_values[1]
             model_output = model_output.squeeze(1)  # We used unrolled RNN and can remove the time step dimension
 
-            # Unpack state if it is LSTM
-            if is_lstm:
-                state, cell = state
-
-            # Select only relevant outputs/states when we don't optimize.
-            # In that case, we would have executed the entire batch, but we only need some.
+            # Unpack LSTM, update hidden state for next step, and select only relevant states/outputs
+            # In the case of not optimizing the recurrent model, we need to select only the updates outputs/states that
+            # are relevant / have not halted.
             if not self.optimize:
-                state = state[:, batch_element_idx, :]
                 if is_lstm:
+                    state, cell = state  # Unpack
+                    hidden = state  # Update hidden state
+                    state = state[:, batch_element_idx, :]  # Select relevant non-halting
                     cell = cell[:, batch_element_idx, :]
-                model_output = model_output[batch_element_idx]
+                else:
+                    hidden = state  # Update hidden state
+
+                model_output = model_output[batch_element_idx]  # Select relevant
+            else:
+                if is_lstm:
+                    state, cell = state  # Unpack
+                    hidden[0][:, batch_element_idx, :] = state  # Update hidden state
+                    hidden[1][:, batch_element_idx, :] = cell
+                else:
+                    hidden[:, batch_element_idx, :] = state
 
             if len(return_values) > 2:
                 extra_return_values.append(return_values[2:])
