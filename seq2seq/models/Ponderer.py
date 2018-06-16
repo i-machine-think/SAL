@@ -88,12 +88,6 @@ class Ponderer(nn.Module):
             # Increment the nuber of executed ponder steps
             ponder_steps[batch_element_idx] = ponder_steps[batch_element_idx] + 1
 
-            # R(t) = 1 - Sum_{n-1} (halt_prob_i)
-            # We thus set/overwrite it with 1 - accumulative halting probabilities.
-            # This is overwritten for every step up until the step at which it will terminate.
-            # Thus it will contain 1 minus all halting probability, excluded the last probability
-            ponder_penalty[batch_element_idx] = 1 - accumulative_halting_probabilities[batch_element_idx]
-
             # Indicate whether this is the first ponder step
             if ponder_step == 0:
                 input = input1
@@ -143,11 +137,18 @@ class Ponderer(nn.Module):
             if ponder_step == 0:
                 remainder = torch.ones(last_ponder_step_idx.size(), device=device)
             else:
+                # R(t) = 1 - Sum_{n-1} (halt_prob_i)
                 remainder = 1 - (accumulative_halting_probabilities[batch_element_idx[last_ponder_step_idx]])
 
             # For all halting elements, replace probability with remainder
             halting_probabilities = halting_probabilities.clone()
             halting_probabilities[last_ponder_step_idx] = remainder
+
+            # In the original paper the authors minimize the remainder, which comes down to maximizing the halting probabilities
+            # of all time steps [1,N-1]. Instead we could also minimize the halting probability of time step N.
+            # Sometimes, I found this to be beneficial for convergence. To do this, simply move this line to before the halting probabilities are replaced
+            # By the remainders
+            ponder_penalty[batch_element_idx[last_ponder_step_idx]] = halting_probabilities[last_ponder_step_idx]
 
             # Add halting probability (or remainder) to the sum
             accumulative_halting_probabilities[batch_element_idx] = accumulative_halting_probabilities[batch_element_idx] + halting_probabilities
