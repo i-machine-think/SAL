@@ -88,6 +88,7 @@ class DecoderRNN(nn.Module):
             self.decoder_model = Ponderer(model=self.decoder_model, hidden_size=hidden_size,
                                           output_size=vocab_size, max_ponder_steps=max_ponder_steps, eps=ponder_epsilon)
 
+
     def forward_step(self, input_var, decoder_hidden, encoder_outputs, function, **attention_method_kwargs):
         embedded = self.embedding(input_var)
         embedded = self.input_dropout(embedded)
@@ -137,7 +138,7 @@ class DecoderRNN(nn.Module):
         # the previous hidden state, before we can calculate the next hidden state.
         # We also need to unroll when we don't use teacher forcing. We need perform the decoder steps
         # one-by-one since the output needs to be copied to the input of the next step.
-        if self.use_attention == 'pre-rnn' or not use_teacher_forcing:
+        if self.use_attention == 'pre-rnn' or not use_teacher_forcing or self.use_pondering:
             unrolling = True
         else:
             unrolling = False

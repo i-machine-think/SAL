@@ -45,7 +45,7 @@ class Ponderer(nn.Module):
         try:
             return super(Ponderer, self).__getattr__(attr)
         except AttributeError:
-            return self.model.__getattr__(attr)
+            return self.model.__getattribute__(attr)
 
     def forward(self, *args, **kwargs):
         # First two args should be the input and hidden variable. Everything after that is passed to the model
@@ -123,8 +123,8 @@ class Ponderer(nn.Module):
             # are relevant / have not halted.
             if not self.optimize:
                 if is_lstm:
-                    state, cell = state  # Unpack
                     hidden = state  # Update hidden state
+                    state, cell = state  # Unpack
                     state = state[:, batch_element_idx, :]  # Select relevant non-halting
                     cell = cell[:, batch_element_idx, :]
                 else:
