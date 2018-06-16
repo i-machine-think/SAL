@@ -31,7 +31,6 @@ class DecoderRNNModel(BaseRNN):
         if use_attention == 'pre-rnn' and not full_focus:
             self.input_size *= 2
 
-        self.embedding = nn.Embedding(self.output_size, self.hidden_size)
         self.rnn = self.rnn_cell(self.input_size, self.hidden_size,
                                  self.n_layers, batch_first=True, dropout=self.dropout_p)
 
