@@ -63,7 +63,7 @@ class DecoderRNN(nn.Module):
     KEY_ATTN_SCORE = 'attention_score'
     KEY_LENGTH = 'length'
     KEY_SEQUENCE = 'sequence'
-    KEY_PONDER = 'ponder_penalty'
+    KEY_PONDER = 'decoder_ponder_penalty'
 
     def __init__(self, vocab_size, max_len, hidden_size, sos_id, eos_id, n_layers=1, rnn_cell='gru',
                  bidirectional=False, input_dropout_p=0, dropout_p=0, use_attention=False,

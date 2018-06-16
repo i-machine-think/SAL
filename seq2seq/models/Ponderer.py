@@ -54,7 +54,7 @@ class Ponderer(nn.Module):
         is_lstm = isinstance(hidden, tuple)
 
         batch_size, decoder_length, input_size = input.size()
-        n_layers = hidden[0].size(0) if is_lstm else hidden.size()
+        n_layers = hidden[0].size(0) if is_lstm else hidden.size(0)
 
         assert decoder_length == 1, "Ponderer currently only works for unrolled RNN"
         assert not isinstance(input, torch.nn.utils.rnn.PackedSequence), "Ponderer currently does not work for PackedSequence"

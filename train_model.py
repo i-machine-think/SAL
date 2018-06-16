@@ -66,7 +66,8 @@ parser.add_argument('--write-logs', help='Specify file to write logs to after tr
 parser.add_argument('--cuda_device', default=0, type=int, help='set cuda device to use')
 
 # Ponder arguments
-parser.add_argument('--ponder_decoder', action='store_true', help='Use ACT pondering for the decocer')
+parser.add_argument('--ponder_encoder', action='store_true', help='Use ACT pondering for the encoder')
+parser.add_argument('--ponder_decoder', action='store_true', help='Use ACT pondering for the decoder')
 parser.add_argument('--max_ponder_steps', type=int, default=100, help='Hard maximum number of ponder steps')
 parser.add_argument('--ponder_epsilon', type=float, default=0.01, help='Epsilon for ACT to allow only 1 ponder step')
 parser.add_argument('--ponder_penalty_scale', type=float, default=0.01, help='Scale of the ponder penalty loss')
@@ -206,7 +207,10 @@ else:
                          n_layers=opt.n_layers,
                          bidirectional=opt.bidirectional,
                          rnn_cell=opt.rnn_cell,
-                         variable_lengths=True)
+                         variable_lengths=True,
+                         ponder=opt.ponder_encoder,
+                         max_ponder_steps=opt.max_ponder_steps,
+                         ponder_epsilon=opt.ponder_epsilon)
     decoder = DecoderRNN(len(tgt.vocab), max_len, decoder_hidden_size,
                          dropout_p=opt.dropout_p_decoder,
                          n_layers=opt.n_layers,
@@ -252,8 +256,12 @@ losses = [NLLLoss(ignore_index=pad)]
 # loss_weights = [1.]
 loss_weights = [float(opt.xent_loss)]
 
+if opt.ponder_encoder:
+    losses.append(PonderLoss(name="Encoder ponder penalty", log_name="encoder_ponder_loss", identifier="encoder_ponder_penalty"))
+    loss_weights.append(opt.ponder_penalty_scale)
+
 if opt.ponder_decoder:
-    losses.append(PonderLoss())
+    losses.append(PonderLoss(name="Decoder ponder penalty", log_name="decoder_ponder_loss", identifier="decoder_ponder_penalty"))
     loss_weights.append(opt.ponder_penalty_scale)
 
 if opt.use_attention_loss:
