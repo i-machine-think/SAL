@@ -430,13 +430,14 @@ class VerifyProduceAccuracy(Metric):
         all_in = lambda a, b: all(i in b for i in a)
         not_in = lambda a,b: frozenset(a).isdisjoint(frozenset(b))
         if ('or' in grammar):
-            target = list(set(grammar) - set(['produce']))
+            target = list(set(grammar) - set(['produce', 'or']))
             all_correct = any_in(prediction, target)
         elif('and' in grammar and 'not' not in grammar):
             target = list(set(grammar) - set(['produce', 'and']))
             all_correct = all_in(prediction, target)
         elif('not' in grammar):
-            target = list(set(grammar) - set(['produce']))
+            grammar.pop(grammar.index('produce'))
+            target = grammar.copy() #list(set(grammar) - set(['produce']))
             check1 = []
             for i in range(1, len(target)):
                 if(target[i-1]=='not'):
@@ -464,7 +465,7 @@ class VerifyProduceAccuracy(Metric):
         # batch_size X N variable containing the indices of the model's input,
         # where N is the longest input
         input_variable = targets['encoder_input']
-
+        output_variable = targets['decoder_output']
         batch_size = input_variable.size(0)
 
         # Convert to batch_size x M variable containing the indices of the model's output, where M
@@ -481,13 +482,16 @@ class VerifyProduceAccuracy(Metric):
             # Extract the current example and move to cpu
             grammar = input_variable[i_batch_element, :].data.cpu().numpy()
             prediction = predictions[i_batch_element, :].data.cpu().numpy()
+            target_output = output_variable[i_batch_element, :].data.cpu().numpy()
 
 
             # Convert indices to strings
             # Remove all padding from the grammar.
-            grammar = [self.input_vocab.itos[token] for token in grammar if token !=
+            grammar = [self.input_vocab.itos[token] for token in grammar if
                        self.input_vocab.itos[token] != self.input_pad_symbol]
             prediction = [self.output_vocab.itos[token] for token in prediction]
+            tgt_output = [self.output_vocab.itos[token] for token in target_output if
+                          self.output_vocab.itos[token] != self.output_pad_symbol ]
 
             # print('grammar:')
             # print(grammar)
@@ -495,11 +499,14 @@ class VerifyProduceAccuracy(Metric):
             # print('predictions:')
             # print(prediction)
             # input()
+            # print('target outputs:')
+            # print(tgt_output)
+            # input()
 
             #if the input is a verify task then just check the binary output and move to next
             #input in the batch
-            if (grammar[0] == 'verify'):
-                if prediction[0] == 'yes':
+            if ('verify' in grammar):
+                if prediction[0] == tgt_output[1]:
                     self.seq_correct +=1
                 continue
 

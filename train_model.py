@@ -249,18 +249,18 @@ if opt.use_attention_loss:
 for loss in losses:
   loss.to(device)
 
-metrics = [WordAccuracy(ignore_index=pad), SequenceAccuracy(ignore_index=pad), FinalTargetAccuracy(ignore_index=pad, eos_id=tgt.eos_id)]
+metrics = [SequenceAccuracy(ignore_index=pad)] # WordAccuracy(ignore_index=pad), FinalTargetAccuracy(ignore_index=pad, eos_id=tgt.eos_id)
 # Since we need the actual tokens to determine k-grammar accuracy,
 # we also provide the input and output vocab and relevant special symbols
-metrics.append(VerifyProduceAccuracy(
-    input_vocab=input_vocab,
-    output_vocab=output_vocab,
-    use_output_eos=use_output_eos,
-    input_pad_symbol=src.pad_token,
-    output_sos_symbol=tgt.SYM_SOS,
-    output_pad_symbol=tgt.pad_token,
-    output_eos_symbol=tgt.SYM_EOS,
-    output_unk_symbol=tgt.unk_token))
+# metrics.append(VerifyProduceAccuracy(
+#     input_vocab=input_vocab,
+#     output_vocab=output_vocab,
+#     use_output_eos=use_output_eos,
+#     input_pad_symbol=src.pad_token,
+#     output_sos_symbol=tgt.SYM_SOS,
+#     output_pad_symbol=tgt.pad_token,
+#     output_eos_symbol=tgt.SYM_EOS,
+#     output_unk_symbol=tgt.unk_token))
 
 checkpoint_path = os.path.join(opt.output_dir, opt.load_checkpoint) if opt.resume else None
 
