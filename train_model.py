@@ -15,7 +15,7 @@ import seq2seq
 from seq2seq.trainer import SupervisedTrainer
 from seq2seq.models import EncoderRNN, DecoderRNN, Seq2seq
 from seq2seq.loss import Perplexity, AttentionLoss, NLLLoss
-from seq2seq.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, VerifyProduceAccuracy
+from seq2seq.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, VerifyProduceAccuracy, PonderTokenMetric
 from seq2seq.optim import Optimizer
 from seq2seq.dataset import SourceField, TargetField, AttentionField
 from seq2seq.evaluator import Predictor, Evaluator
@@ -147,6 +147,7 @@ if opt.use_attention_loss or opt.attention_method == 'hard':
             raise Exception("AttentionField not found in train data")
         tgt_len = len(vars(train[0])['tgt']) - 1 # -1 for SOS
         attn_len = len(vars(train[0])['attn']) - 1 # -1 for preprended ignore_index
+        #print(tgt_len, attn_len)
         if attn_len != tgt_len:
             raise Exception("Length of output sequence does not equal length of attention sequence in train data")
 
@@ -252,15 +253,26 @@ for loss in losses:
 metrics = [SequenceAccuracy(ignore_index=pad)] # WordAccuracy(ignore_index=pad), FinalTargetAccuracy(ignore_index=pad, eos_id=tgt.eos_id)
 # Since we need the actual tokens to determine k-grammar accuracy,
 # we also provide the input and output vocab and relevant special symbols
-# metrics.append(VerifyProduceAccuracy(
-#     input_vocab=input_vocab,
-#     output_vocab=output_vocab,
-#     use_output_eos=use_output_eos,
-#     input_pad_symbol=src.pad_token,
-#     output_sos_symbol=tgt.SYM_SOS,
-#     output_pad_symbol=tgt.pad_token,
-#     output_eos_symbol=tgt.SYM_EOS,
-#     output_unk_symbol=tgt.unk_token))
+metrics.append(VerifyProduceAccuracy(
+    input_vocab=input_vocab,
+    output_vocab=output_vocab,
+    use_output_eos=use_output_eos,
+    input_pad_symbol=src.pad_token,
+    output_sos_symbol=tgt.SYM_SOS,
+    output_pad_symbol=tgt.pad_token,
+    output_eos_symbol=tgt.SYM_EOS,
+    output_unk_symbol=tgt.unk_token))
+
+metrics.append(PonderTokenMetric(
+    input_vocab=input_vocab,
+    output_vocab=output_vocab,
+    use_output_eos=use_output_eos,
+    input_pad_symbol=src.pad_token,
+    output_sos_symbol=tgt.SYM_SOS,
+    output_pad_symbol=tgt.pad_token,
+    output_eos_symbol=tgt.SYM_EOS))
+
+
 
 checkpoint_path = os.path.join(opt.output_dir, opt.load_checkpoint) if opt.resume else None
 

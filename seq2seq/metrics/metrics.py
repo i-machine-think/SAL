@@ -496,26 +496,17 @@ class VerifyProduceAccuracy(Metric):
             # print('grammar:')
             # print(grammar)
             # input()
-            # print('predictions:')
-            # print(prediction)
-            # input()
             # print('target outputs:')
             # print(tgt_output)
-            # input()
-
-            #if the input is a verify task then just check the binary output and move to next
-            #input in the batch
-            if ('verify' in grammar):
-                if prediction[0] == tgt_output[1]:
-                    self.seq_correct +=1
-                continue
+            # print('predictions:')
+            # print(prediction)
 
             # # The first prediction after the actual output should be EOS
-            # if self.use_output_eos and prediction[-1] != self.output_eos_symbol:
-            #     continue
+            if self.use_output_eos and prediction[-1] != self.output_eos_symbol:
+                continue
 
             # Remove EOS (and possible padding)
-            prediction_correct_length = prediction #[:-1]
+            prediction_correct_length = prediction[:-1]
 
             # If the EOS symbol is present in the prediction, this means that the prediction was too
             # short.
@@ -523,12 +514,138 @@ class VerifyProduceAccuracy(Metric):
             # also be predicted by the model, especially at the beginning of training due to random
             # weight initialization. Since these render the output incorrect and cause an error in
             # correct(), we check for their presence here.
-            if  self.output_eos_symbol in prediction_correct_length or \
-                    self.output_sos_symbol in prediction_correct_length or \
-                    self.output_pad_symbol in prediction_correct_length or \
-                    self.output_unk_symbol in prediction_correct_length:
+            # if  self.output_eos_symbol in prediction_correct_length or \
+            #         self.output_sos_symbol in prediction_correct_length or \
+            #         self.output_pad_symbol in prediction_correct_length or \
+            #         self.output_unk_symbol in prediction_correct_length:
+            #     continue
+
+            # if the input is a verify task then just check the binary output and move to next
+            # input in the batch
+            # print(self.seq_correct)
+            # input()
+            if ('verify' in grammar):
+                if tgt_output[-2] in prediction_correct_length:
+                    self.seq_correct += 1
                 continue
 
             # Check whether the prediction actually comes from the grammar
-            if self.correct(grammar, prediction_correct_length):
+            trimmed_prediction = list(set(prediction_correct_length)-set(['erm']))
+            # print('trimmed predictions:')
+            # print(prediction_correct_length)
+            # print(trimmed_prediction)
+            # input()
+            if self.correct(grammar, trimmed_prediction):
                 self.seq_correct += 1
+
+
+class PonderTokenMetric(Metric):
+    """
+    Batch average of SciL produce micortask task sequence accuracy.
+    This metric is very specific for the produce micro task
+    For one input, multiple outputs can be correct.
+
+    Args:
+        input_vocab (torchtext.vocab): Input dictionary
+        output_vocab (torchtext.vocab): Output dictionary
+        use_output_eos (bool): Boolean to indicate whether an output EOS should be present
+        input_pad_symbol (str): Input PAD symbol
+        output_sos_symbol (str): Output SOS symbol
+        output_eos_symbol (str): Output EOS symbol
+        output_pad_symbol (str): Output PAD symbol
+    """
+
+    _NAME = "Ponder Token Metric"
+    _SHORTNAME = "erm_tkn_acc"
+    _INPUT = "seqlist"
+
+    def __init__(self, input_vocab, output_vocab, use_output_eos, input_pad_symbol, output_sos_symbol, output_pad_symbol, output_eos_symbol):
+        self.input_vocab = input_vocab
+        self.output_vocab = output_vocab
+
+        self.use_output_eos = use_output_eos
+
+        # instead of passing all these arguments, we could also hard-code to use <sos>, <pad>, <unk> and <eos>
+        self.input_pad_symbol = input_pad_symbol
+        self.output_sos_symbol = output_sos_symbol
+        self.output_pad_symbol = output_pad_symbol
+        self.output_eos_symbol = output_eos_symbol
+
+        self.ponder_correct = 0
+        self.ponder_total = 0
+        self.ponder_token = 'erm'
+
+        super(PonderTokenMetric, self).__init__(self._NAME, self._SHORTNAME, self._INPUT)
+
+    def get_val(self):
+        """
+        Get the average accuracy metric of all processed batches
+        Returns:
+            float: average accuracy
+        """
+        if self.ponder_total != 0:
+            return float(self.ponder_correct) / self.ponder_total
+        else:
+            return 0
+
+    def reset(self):
+        """
+        Reset after all batches have been processed
+        """
+        self.ponder_correct = 0
+        self.ponder_total = 0
+
+
+    def eval_batch(self, outputs, targets):
+        """
+        Evaluates one batch of inputs (grammar) and checks whether the predictions are correct in the
+        specified grammar.
+        Note that we assume that the input grammar's do not contain any EOS-like symbol
+        Args:
+            outputs (list(torch.tensor)): Contains the predictions of the model. List of length max_output_length, where each element is a tensor of length batch_size
+            targets (dict): Dictionary containing the grammars
+        """
+
+        # batch_size X N variable containing the indices of the model's input,
+        # where N is the longest input
+        input_variable = targets['encoder_input']
+        output_variable = targets['decoder_output']
+        batch_size = input_variable.size(0)
+
+        # Convert to batch_size x M variable containing the indices of the model's output, where M
+        # is the longest output
+        predictions = torch.stack(outputs, dim=1).view(batch_size, -1)
+
+        # Current implementation does not allow batch-wise evaluation
+        for i_batch_element in range(batch_size):
+            # We go through multiple checks for incorrectness.
+            # If all these test fail, we consider the sequence correct.
+
+            # Extract the current example and move to cpu
+            grammar = input_variable[i_batch_element, :].data.cpu().numpy()
+            prediction = predictions[i_batch_element, :].data.cpu().numpy()
+            target_output = output_variable[i_batch_element, :].data.cpu().numpy()
+
+
+            # Convert indices to strings
+            # Remove all padding from the grammar.
+            grammar = [self.input_vocab.itos[token] for token in grammar if
+                       self.input_vocab.itos[token] != self.input_pad_symbol]
+            prediction = [self.output_vocab.itos[token] for token in prediction]
+            target_output = [self.output_vocab.itos[token] for token in target_output if
+                          self.output_vocab.itos[token] != self.output_pad_symbol ]
+
+
+            # # The first prediction after the actual output should be EOS
+            if self.use_output_eos and prediction[-1] != self.output_eos_symbol:
+                continue
+
+            # Remove EOS (and possible padding)
+            ponder_length = prediction[:prediction.index(self.output_eos_symbol)]
+            tgt_length = target_output[1:-1]
+
+            pc = [p for p in ponder_length if p==self.ponder_token]
+            pt = [p for p in tgt_length if p==self.ponder_token]
+
+            self.ponder_correct += len(pc)
+            self.ponder_total += len(pt)
