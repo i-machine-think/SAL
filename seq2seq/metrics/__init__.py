@@ -1,1 +1,1 @@
-from .metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, SymbolRewritingAccuracy, VerifyProduceAccuracy
+from .metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, SymbolRewritingAccuracy, VerifyProduceAccuracy, PonderTokenMetric
