@@ -45,7 +45,11 @@ class Ponderer(nn.Module):
         try:
             return super(Ponderer, self).__getattr__(attr)
         except AttributeError:
+            pass
+        try:
             return self.model.__getattribute__(attr)
+        except AttributeError:
+            return self.model.__getattr__(attr)
 
     def forward(self, *args, **kwargs):
         # First two args should be the input and hidden variable. Everything after that is passed to the model
