@@ -19,15 +19,20 @@ except NameError:
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--checkpoint_path', help='Give the checkpoint path from which to load the model')
-parser.add_argument('--cuda_device', default=0, type=int, help='set cuda device to use')
-parser.add_argument('--test', help='Path to test data')
-parser.add_argument('--train', help='Path to train data')
-parser.add_argument('--output_dir', help='Path to save results')
-parser.add_argument('--run_infer', action='store_true')
-parser.add_argument('--max_plots', type=int, help='Maximum sequence length', default=10)
-parser.add_argument('--max_len', type=int, help='Maximum sequence length', default=50)
-parser.add_argument('--use_input_eos', action='store_true', help='EOS symbol in input sequences is not used by default. Use this flag to enable.')
-parser.add_argument('--ignore_output_eos', action='store_true', help='Ignore end of sequence token during training and evaluation')
+# <<<<<<< HEAD
+# parser.add_argument('--cuda_device', default=0, type=int, help='set cuda device to use')
+# parser.add_argument('--test', help='Path to test data')
+# parser.add_argument('--train', help='Path to train data')
+# parser.add_argument('--output_dir', help='Path to save results')
+# parser.add_argument('--run_infer', action='store_true')
+# parser.add_argument('--max_plots', type=int, help='Maximum sequence length', default=10)
+# parser.add_argument('--max_len', type=int, help='Maximum sequence length', default=50)
+# parser.add_argument('--use_input_eos', action='store_true', help='EOS symbol in input sequences is not used by default. Use this flag to enable.')
+# parser.add_argument('--ignore_output_eos', action='store_true', help='Ignore end of sequence token during training and evaluation')
+# =======
+parser.add_argument('--cuda_device', default=0, type=int, help='Set cuda device to use')
+parser.add_argument('--debug', action='store_true', help=argparse.SUPPRESS)
+parser.add_argument('--log-level', default='info', help='Logging level.')
 
 opt = parser.parse_args()
 final_level = ['full_focus', 'full_focus_baseline', 'pre_rnn', 'pre_rnn_baseline']
@@ -37,8 +42,13 @@ regular = [('longer_compositions_seen', 50), ('longer_compositions_incremental',
 #longer = []
 test_folders = [regular]
 
+LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
+logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
+logging.info(opt)
+
+
 if torch.cuda.is_available():
-        print("Cuda device set to %i" % opt.cuda_device)
+        logging.info("Cuda device set to %i" % opt.cuda_device)
         torch.cuda.set_device(opt.cuda_device)
 
 use_output_eos = not opt.ignore_output_eos
@@ -137,11 +147,23 @@ for i in range(2, 6):
 
 
 
-# if opt.run_infer:
-#     while True:
-#             seq_str = raw_input("Type in a source sequence:")
-#             seq = seq_str.strip().split()
-#             out = predictor.predict(seq)
-#             print(out[0])
-# else:
-#     print("Exiting Inference Mode")
+# <<<<<<< HEAD
+# # if opt.run_infer:
+# #     while True:
+# #             seq_str = raw_input("Type in a source sequence:")
+# #             seq = seq_str.strip().split()
+# #             out = predictor.predict(seq)
+# #             print(out[0])
+# # else:
+# #     print("Exiting Inference Mode")
+# =======
+if opt.debug:
+    exit()
+
+while True:
+        seq_str = raw_input("\n\nType in a source sequence: ")
+        if seq_str == 'q':
+            exit()
+        seq = seq_str.strip().split()
+        print(predictor.predict(seq))
+

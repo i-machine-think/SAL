@@ -1,5 +1,6 @@
 import torch
-from torch.autograd import Variable
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Predictor(object):
 
@@ -12,10 +13,8 @@ class Predictor(object):
             src_vocab (seq2seq.dataset.vocabulary.Vocabulary): source sequence vocabulary
             tgt_vocab (seq2seq.dataset.vocabulary.Vocabulary): target sequence vocabulary
         """
-        if torch.cuda.is_available():
-            self.model = model.cuda()
-        else:
-            self.model = model.cpu()
+        self.model = model.to(device)
+
         self.model.eval()
         self.src_vocab = src_vocab
         self.tgt_vocab = tgt_vocab
@@ -31,23 +30,27 @@ class Predictor(object):
             tgt_seq (list): list of tokens in target language as predicted
             by the pre-trained model
         """
-        target_variable = None
-        src_id_seq = Variable(torch.LongTensor([self.src_vocab.stoi[tok] for tok in src_seq]),
-                              volatile=True).view(1, -1)
-        if (tgt_seq != None):
-            tgt_id_seq = Variable(torch.LongTensor([self.tgt_vocab.stoi[tok] for tok in tgt_seq]),
-                                  volatile=True).view(1, -1)
+# <<<<<<< HEAD
+#         target_variable = None
+#         src_id_seq = Variable(torch.LongTensor([self.src_vocab.stoi[tok] for tok in src_seq]),
+#                               volatile=True).view(1, -1)
+#         if (tgt_seq != None):
+#             tgt_id_seq = Variable(torch.LongTensor([self.tgt_vocab.stoi[tok] for tok in tgt_seq]),
+#                                   volatile=True).view(1, -1)
+#
+#             attn_target = Variable(torch.LongTensor(attn[:-1]).unsqueeze(0))
+#
+#             if torch.cuda.is_available():
+#                 tgt_id_seq = tgt_id_seq.cuda()
+#                 attn_target = attn_target.cuda()
+#             target_variable = {'decoder_output': tgt_id_seq, 'attention_target': attn_target}
+#
+#
+#         if torch.cuda.is_available():
+#             src_id_seq = src_id_seq.cuda()
+# =======
+        src_id_seq = torch.tensor([self.src_vocab.stoi[tok] for tok in src_seq], dtype=torch.long, device=device).view(1, -1)
 
-            attn_target = Variable(torch.LongTensor(attn[:-1]).unsqueeze(0))
-
-            if torch.cuda.is_available():
-                tgt_id_seq = tgt_id_seq.cuda()
-                attn_target = attn_target.cuda()
-            target_variable = {'decoder_output': tgt_id_seq, 'attention_target': attn_target}
-
-
-        if torch.cuda.is_available():
-            src_id_seq = src_id_seq.cuda()
 
 
 

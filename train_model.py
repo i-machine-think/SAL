@@ -12,14 +12,16 @@ import pickle
 from collections import OrderedDict
 
 import seq2seq
-from seq2seq.trainer import SupervisedTrainer, LookupTablePonderer
+from seq2seq.trainer import SupervisedTrainer
 from seq2seq.models import EncoderRNN, DecoderRNN, Seq2seq
 from seq2seq.loss import Perplexity, AttentionLoss, NLLLoss
-from seq2seq.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy
+from seq2seq.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, SymbolRewritingAccuracy
 from seq2seq.optim import Optimizer
 from seq2seq.dataset import SourceField, TargetField, AttentionField
 from seq2seq.evaluator import Predictor, Evaluator
 from seq2seq.util.checkpoint import Checkpoint
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 try:
     raw_input          # Python 2
@@ -44,7 +46,6 @@ parser.add_argument('--tgt_vocab', type=int, help='target vocabulary size', defa
 parser.add_argument('--dropout_p_encoder', type=float, help='Dropout probability for the encoder', default=0.2)
 parser.add_argument('--dropout_p_decoder', type=float, help='Dropout probability for the decoder', default=0.2)
 parser.add_argument('--teacher_forcing_ratio', type=float, help='Teacher forcing ratio', default=0.2)
-parser.add_argument('--pondering', action='store_true')
 parser.add_argument('--attention', choices=['pre-rnn', 'post-rnn'], default=False)
 parser.add_argument('--attention_method', choices=['dot', 'mlp', 'concat', 'hard'], default=None)
 parser.add_argument('--use_attention_loss', action='store_true')
@@ -54,7 +55,6 @@ parser.add_argument('--full_focus', action='store_true')
 parser.add_argument('--batch_size', type=int, help='Batch size', default=32)
 parser.add_argument('--eval_batch_size', type=int, help='Batch size', default=128)
 parser.add_argument('--lr', type=float, help='Learning rate, recommended settings.\nrecommended settings: adam=0.001 adadelta=1.0 adamax=0.002 rmsprop=0.01 sgd=0.1', default=0.001)
-parser.add_argument('--use_input_eos', action='store_true', help='EOS symbol in input sequences is not used by default. Use this flag to enable.')
 parser.add_argument('--ignore_output_eos', action='store_true', help='Ignore end of sequence token during training and evaluation')
 
 parser.add_argument('--load_checkpoint', help='The name of the checkpoint to load, usually an encoded time string')
@@ -66,8 +66,13 @@ parser.add_argument('--write-logs', help='Specify file to write logs to after tr
 parser.add_argument('--cuda_device', default=0, type=int, help='set cuda device to use')
 
 opt = parser.parse_args()
-
 IGNORE_INDEX=-1
+use_output_eos = not opt.ignore_output_eos
+
+LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
+logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
+logging.info(opt)
+
 
 if opt.resume and not opt.load_checkpoint:
     parser.error('load_checkpoint argument is required to resume training from checkpoint')
@@ -81,29 +86,21 @@ if not opt.attention and opt.attention_method:
 if opt.attention and not opt.attention_method:
     parser.error("Attention turned on, but no attention method provided")
 
-if opt.attention_method == 'hard' and opt.ignore_output_eos == opt.use_input_eos:
-    parser.error("If using hard attention method, input and output should both have EOS, or neither")
-
 if opt.use_attention_loss and opt.attention_method == 'hard':
     parser.error("Can't use attention loss in combination with non-differentiable hard attention method.")
 
-LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
-logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
-logging.info(opt)
-
 if torch.cuda.is_available():
-        print("Cuda device set to %i" % opt.cuda_device)
+        logging.info("Cuda device set to %i" % opt.cuda_device)
         torch.cuda.set_device(opt.cuda_device)
 
 if opt.attention:
     if not opt.attention_method:
-        print("No attention method provided. Using DOT method.")
+        logging.info("No attention method provided. Using DOT method.")
         opt.attention_method = 'dot'
 
 ############################################################################
 # Prepare dataset
-use_output_eos = not opt.ignore_output_eos
-src = SourceField(use_input_eos=opt.use_input_eos)
+src = SourceField()
 tgt = TargetField(include_eos=use_output_eos)
 
 tabular_data_fields = [('src', src), ('tgt', tgt)]
@@ -130,6 +127,7 @@ if opt.dev:
         fields=tabular_data_fields,
         filter_pred=len_filter
     )
+
 else:
     dev = None
 
@@ -140,6 +138,34 @@ for dataset in opt.monitor:
         fields=tabular_data_fields,
         filter_pred=len_filter)
     monitor_data[dataset] = m
+
+# When chosen to use attentive guidance, check whether the data is correct for the first
+# example in the data set. We can assume that the other examples are then also correct.
+if opt.use_attention_loss or opt.attention_method == 'hard':
+    if len(train) > 0:
+        if 'attn' not in vars(train[0]):
+            raise Exception("AttentionField not found in train data")
+        tgt_len = len(vars(train[0])['tgt']) - 1 # -1 for SOS
+        attn_len = len(vars(train[0])['attn']) - 1 # -1 for preprended ignore_index
+        if attn_len != tgt_len:
+            raise Exception("Length of output sequence does not equal length of attention sequence in train data")
+
+    if dev is not None and len(dev) > 0:
+        if 'attn' not in vars(dev[0]):
+            raise Exception("AttentionField not found in dev data")
+        tgt_len = len(vars(dev[0])['tgt']) - 1 # -1 for SOS
+        attn_len = len(vars(dev[0])['attn']) - 1 # -1 for preprended ignore_index
+        if attn_len != tgt_len:
+            raise Exception("Length of output sequence does not equal length of attention sequence in dev data.")
+
+    for m in monitor_data.values():
+        if len(m) > 0:
+            if 'attn' not in vars(m[0]):
+                raise Exception("AttentionField not found in monitor data")
+            tgt_len = len(vars(m[0])['tgt']) - 1 # -1 for SOS
+            attn_len = len(vars(m[0])['attn']) - 1 # -1 for preprended ignore_index
+            if attn_len != tgt_len:
+                raise Exception("Length of output sequence does not equal length of attention sequence in monitor data.")
 
 #################################################################################
 # prepare model
@@ -152,7 +178,6 @@ if opt.load_checkpoint is not None:
 
     input_vocab = checkpoint.input_vocab
     src.vocab = input_vocab
-    src.eos_id = src.vocab.stoi[src.SYM_EOS]
 
     output_vocab = checkpoint.output_vocab
     tgt.vocab = output_vocab
@@ -186,8 +211,7 @@ else:
                          rnn_cell=opt.rnn_cell,
                          eos_id=tgt.eos_id, sos_id=tgt.sos_id)
     seq2seq = Seq2seq(encoder, decoder)
-    if torch.cuda.is_available():
-        seq2seq.cuda()
+    seq2seq.to(device)
 
     for param in seq2seq.parameters():
         param.data.uniform_(-0.08, 0.08)
@@ -213,28 +237,35 @@ output_vocabulary = output_vocab.itos
 
 # Prepare loss and metrics
 pad = output_vocab.stoi[tgt.pad_token]
-loss = [NLLLoss(ignore_index=pad)]
+losses = [NLLLoss(ignore_index=pad)]
 # loss_weights = [1.]
 loss_weights = [float(opt.xent_loss)]
 
 
 if opt.use_attention_loss:
-    loss.append(AttentionLoss(ignore_index=IGNORE_INDEX))
+    losses.append(AttentionLoss(ignore_index=IGNORE_INDEX))
     loss_weights.append(opt.scale_attention_loss)
 
+for loss in losses:
+  loss.to(device)
+
 metrics = [WordAccuracy(ignore_index=pad), SequenceAccuracy(ignore_index=pad), FinalTargetAccuracy(ignore_index=pad, eos_id=tgt.eos_id)]
-if torch.cuda.is_available():
-    for loss_func in loss:
-        loss_func.cuda()
+# Since we need the actual tokens to determine k-grammar accuracy,
+# we also provide the input and output vocab and relevant special symbols
+# metrics.append(SymbolRewritingAccuracy(
+#     input_vocab=input_vocab,
+#     output_vocab=output_vocab,
+#     use_output_eos=use_output_eos,
+#     input_pad_symbol=src.pad_token,
+#     output_sos_symbol=tgt.SYM_SOS,
+#     output_pad_symbol=tgt.pad_token,
+#     output_eos_symbol=tgt.SYM_EOS,
+#     output_unk_symbol=tgt.unk_token))
 
 checkpoint_path = os.path.join(opt.output_dir, opt.load_checkpoint) if opt.resume else None
 
-ponderer = None
-if opt.pondering:
-    ponderer = LookupTablePonderer(input_eos_used=opt.use_input_eos, output_eos_used=use_output_eos)
-
 # create trainer
-t = SupervisedTrainer(loss=loss, metrics=metrics, 
+t = SupervisedTrainer(loss=losses, metrics=metrics, 
                       loss_weights=loss_weights,
                       batch_size=opt.batch_size,
                       eval_batch_size=opt.eval_batch_size,
@@ -244,7 +275,6 @@ t = SupervisedTrainer(loss=loss, metrics=metrics,
 seq2seq, logs = t.train(seq2seq, train, 
                   num_epochs=opt.epochs, dev_data=dev,
                   monitor_data=monitor_data,
-                  ponderer=ponderer,
                   optimizer=opt.optim,
                   teacher_forcing_ratio=opt.teacher_forcing_ratio,
                   learning_rate=opt.lr,
