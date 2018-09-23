@@ -51,6 +51,7 @@ class EncoderRNN(BaseRNN):
         self.n_layers = n_layers
         self.variable_lengths = variable_lengths
         self.embedding = nn.Embedding(vocab_size, embedding_size)
+        self.embedding = nn.Linear(1, embedding_size)
         self.rnn = self.rnn_cell(embedding_size, hidden_size, n_layers,
                                  batch_first=True, bidirectional=bidirectional, dropout=dropout_p)
 
@@ -71,7 +72,10 @@ class EncoderRNN(BaseRNN):
             - **output** (batch, seq_len, hidden_size): variable containing the encoded features of the input sequence
             - **hidden** (num_layers * num_directions, batch, hidden_size): variable containing the features in the hidden state h
         """
-        embedded = self.embedding(input_var)
+        batch_size, seq_len = input_var.size()
+
+        embedded = self.embedding(input_var.reshape(-1, 1))
+        embedded = embedded.reshape(batch_size, seq_len, -1)
         embedded = self.input_dropout(embedded)
         # TODO: Ponderer currently does not support PackedSequence input. This means we will unroll and also run for <pad> inputs
         if self.variable_lengths and not self.use_pondering:

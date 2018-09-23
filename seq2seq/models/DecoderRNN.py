@@ -83,16 +83,30 @@ class DecoderRNN(nn.Module):
         self.decoder_model = DecoderRNNModel(vocab_size, max_len, hidden_size, sos_id, eos_id, n_layers,
                                              rnn_cell, bidirectional, input_dropout_p, dropout_p, use_attention, attention_method, full_focus)
 
+        # Output size of the recurrent part of the decoder
+        recurrent_output_size = 2 * hidden_size if use_attention == 'post-rnn' else hidden_size
+
         self.use_pondering = ponder
         if self.use_pondering:
             self.decoder_model = Ponderer(model=self.decoder_model, hidden_size=hidden_size,
-                                          output_size=vocab_size, max_ponder_steps=max_ponder_steps, eps=ponder_epsilon)
+                                          output_size=recurrent_output_size, max_ponder_steps=max_ponder_steps, eps=ponder_epsilon)
 
+        self.out = nn.Linear(recurrent_output_size, vocab_size)
 
     def forward_step(self, input_var, decoder_hidden, encoder_outputs, function, **attention_method_kwargs):
         embedded = self.embedding(input_var)
         embedded = self.input_dropout(embedded)
-        return_values = self.decoder_model(embedded, decoder_hidden, encoder_outputs, function, **attention_method_kwargs)
+        return_values = self.decoder_model(embedded, decoder_hidden, encoder_outputs, **attention_method_kwargs)
+
+        output = return_values[0]
+
+        batch_size, output_size, _ = embedded.size()
+
+        predicted_softmax = function(self.out(
+            output.contiguous().view(-1, self.out.in_features)), dim=1).view(batch_size, output_size, -1)
+
+        return_values = list(return_values)
+        return_values[0] = predicted_softmax
 
         return return_values
 

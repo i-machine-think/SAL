@@ -39,14 +39,10 @@ class DecoderRNNModel(BaseRNN):
         else:
             self.attention = None
 
-        if use_attention == 'post-rnn':
-            self.out = nn.Linear(2 * self.hidden_size, self.output_size)
-        else:
-            self.out = nn.Linear(self.hidden_size, self.output_size)
-            if self.full_focus:
-                self.ffocus_merge = nn.Linear(2 * self.hidden_size, self.hidden_size)
+        if use_attention != 'post-rnn' and self.full_focus:
+            self.ffocus_merge = nn.Linear(2 * self.hidden_size, self.hidden_size)
 
-    def forward(self, embedded, hidden, encoder_outputs, function, **attention_method_kwargs):
+    def forward(self, embedded, hidden, encoder_outputs, **attention_method_kwargs):
         """
         Performs one or multiple forward decoder steps.
 
@@ -90,7 +86,4 @@ class DecoderRNNModel(BaseRNN):
             attn = None
             output, hidden = self.rnn(embedded, hidden)
 
-        predicted_softmax = function(self.out(
-            output.contiguous().view(-1, self.out.in_features)), dim=1).view(batch_size, output_size, -1)
-
-        return predicted_softmax, hidden, attn
+        return output, hidden, attn

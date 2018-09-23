@@ -107,7 +107,7 @@ if opt.attention:
 
 ############################################################################
 # Prepare dataset
-src = SourceField()
+src = SourceField(use_vocab=False, tensor_type=torch.FloatTensor)
 tgt = TargetField(include_eos=use_output_eos)
 
 tabular_data_fields = [('src', src), ('tgt', tgt)]
@@ -193,15 +193,15 @@ if opt.load_checkpoint is not None:
 
 else:
     # build vocabulary
-    src.build_vocab(train, max_size=opt.src_vocab)
+    # src.build_vocab(train, max_size=opt.src_vocab)
     tgt.build_vocab(train, max_size=opt.tgt_vocab)
-    input_vocab = src.vocab
+    # input_vocab = src.vocab
     output_vocab = tgt.vocab
 
     # Initialize model
     hidden_size = opt.hidden_size
     decoder_hidden_size = hidden_size*2 if opt.bidirectional else hidden_size
-    encoder = EncoderRNN(len(src.vocab), max_len, hidden_size,
+    encoder = EncoderRNN(1, max_len, hidden_size,
                          opt.embedding_size,
                          dropout_p=opt.dropout_p_encoder,
                          n_layers=opt.n_layers,
@@ -231,7 +231,7 @@ else:
         if "halt_layer.bias" not in name:
             data.uniform_(-0.08, 0.08)
 
-input_vocabulary = input_vocab.itos
+# input_vocabulary = input_vocab.itos
 output_vocabulary = output_vocab.itos
 
 # random.seed(3)

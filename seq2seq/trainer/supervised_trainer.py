@@ -110,11 +110,11 @@ class SupervisedTrainer(object):
         best_checkpoints = top_k*[None]
         best_checkpoints[0] = model_name
 
-        Checkpoint(model=model,
-                   optimizer=self.optimizer,
-                   epoch=start_epoch, step=start_step,
-                   input_vocab=data.fields[seq2seq.src_field_name].vocab,
-                   output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
+        # Checkpoint(model=model,
+        #            optimizer=self.optimizer,
+        #            epoch=start_epoch, step=start_step,
+        #            input_vocab=data.fields[seq2seq.src_field_name].vocab,
+        #            output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
 
 
         for epoch in range(start_epoch, n_epochs + 1):
@@ -187,11 +187,11 @@ class SupervisedTrainer(object):
                             loss_best[index_max] = total_loss
 
                             # save model
-                            Checkpoint(model=model,
-                                       optimizer=self.optimizer,
-                                       epoch=epoch, step=step,
-                                       input_vocab=data.fields[seq2seq.src_field_name].vocab,
-                                       output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
+                            # Checkpoint(model=model,
+                            #            optimizer=self.optimizer,
+                            #            epoch=epoch, step=step,
+                            #            input_vocab=data.fields[seq2seq.src_field_name].vocab,
+                            #            output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir, name=model_name)
 
             if step_elapsed == 0: continue
 

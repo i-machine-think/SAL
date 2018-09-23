@@ -26,6 +26,21 @@ class SourceField(torchtext.data.Field):
             logger.warning("Option include_lengths has to be set to use pytorch-seq2seq.  Changed to True.")
         kwargs['include_lengths'] = True
 
+        # Post-processing function receives batch and positional arguments(?).
+        # Batch is a 2D list with batch examples in dim-0 and sequences in dim-1
+        # For each element in each example we convert from unicode string to integer.
+        # PAD is converted to -1
+        def postprocess(batch, _, __):
+            def safe_cast(cast_func, x, default):
+                try:
+                    return cast_func(x)
+                except (ValueError, TypeError):
+                    return default
+
+            return [[safe_cast(float, item, -1) for item in example] for example in batch]
+
+        kwargs['postprocessing'] = postprocess
+
         super(SourceField, self).__init__(**kwargs)
 
     def build_vocab(self, *args, **kwargs):
