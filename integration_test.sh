@@ -56,19 +56,6 @@ echo "\n\nTest training with pre-rnn attention and GRU cell method mlp"
 python3 train_model.py --train $TRAIN_PATH --dev $DEV_PATH --output_dir $EXPT_DIR --print_every 50 --embedding_size $EMB_SIZE --hidden_size $H_SIZE --rnn_cell $CELL2 --attention 'pre-rnn' --epoch $EPOCH --save_every $CP_EVERY --attention_method 'dot'
 ERR=$((ERR+$?)); EX=$((EX+1))
 
-echo "\n\nTest training with pre-rnn hard attention with EOS"
-python3 train_model.py --train $LOOKUP_HARD_ATTN_WITH_EOS --dev $LOOKUP_HARD_ATTN_WITH_EOS --output_dir $EXPT_DIR --print_every 50 --embedding_size $EMB_SIZE --hidden_size $H_SIZE --rnn_cell $CELL2 --attention 'pre-rnn' --epoch $EPOCH --save_every $CP_EVERY --attention_method 'hard'
-ERR=$((ERR+$?)); EX=$((EX+1))
-
-echo "\n\nTest training with post-rnn hard attention with EOS"
-python3 train_model.py --train $LOOKUP_HARD_ATTN_WITH_EOS --dev $LOOKUP_HARD_ATTN_WITH_EOS --output_dir $EXPT_DIR --print_every 50 --embedding_size $EMB_SIZE --hidden_size $H_SIZE --rnn_cell $CELL2 --attention 'post-rnn' --epoch $EPOCH --save_every $CP_EVERY --attention_method 'hard'
-ERR=$((ERR+$?)); EX=$((EX+1))
-
-echo "\n\nTest training with hard attention without EOS"
-python3 train_model.py --train $LOOKUP_HARD_ATTN_WITHOUT_EOS --dev $LOOKUP_HARD_ATTN_WITHOUT_EOS --output_dir $EXPT_DIR --print_every 50 --embedding_size $EMB_SIZE --hidden_size $H_SIZE --rnn_cell $CELL2 --attention 'post-rnn' --epoch $EPOCH --save_every $CP_EVERY --attention_method 'hard'  --ignore_output_eos
-ERR=$((ERR+$?)); EX=$((EX+1))
-
-
 echo "\n\nTest training with post-rnn attention and LSTM cell"
 python3 train_model.py --train $TRAIN_PATH --dev $DEV_PATH --output_dir $EXPT_DIR --print_every 50 --embedding_size $EMB_SIZE --hidden_size $H_SIZE --rnn_cell $CELL --attention 'post-rnn' --attention_method 'dot' --epoch $EPOCH --save_every $CP_EVERY --teacher_forcing_ratio 0.5
 ERR=$((ERR+$?)); EX=$((EX+1))
