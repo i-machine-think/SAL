@@ -8,7 +8,7 @@ import torchtext
 import machine
 from machine.loss import Perplexity, NLLLoss
 from machine.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, SymbolRewritingAccuracy
-from machine.dataset import SourceField, TargetField, AttentionField
+from machine.dataset import SourceField, TargetField
 from machine.evaluator import Evaluator
 from machine.trainer import SupervisedTrainer
 from machine.util.checkpoint import Checkpoint
