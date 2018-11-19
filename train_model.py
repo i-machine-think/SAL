@@ -14,10 +14,10 @@ from collections import OrderedDict
 import machine
 from machine.trainer import SupervisedTrainer
 from machine.models import EncoderRNN, DecoderRNN, Seq2seq
-from machine.loss import Perplexity, AttentionLoss, NLLLoss
+from machine.loss import Perplexity, NLLLoss
 from machine.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, SymbolRewritingAccuracy, BLEU
 from machine.optim import Optimizer
-from machine.dataset import SourceField, TargetField, AttentionField
+from machine.dataset import SourceField, TargetField
 from machine.evaluator import Predictor, Evaluator
 from machine.util.checkpoint import Checkpoint
 

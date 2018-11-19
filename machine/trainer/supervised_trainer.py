@@ -13,7 +13,7 @@ from collections import defaultdict
 
 import machine
 from machine.evaluator import Evaluator
-from machine.loss import NLLLoss, AttentionLoss
+from machine.loss import NLLLoss
 from machine.metrics import WordAccuracy
 from machine.optim import Optimizer
 from machine.util.checkpoint import Checkpoint
