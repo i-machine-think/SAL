@@ -11,7 +11,14 @@ class Seq2seq(Model):
     def __init__(self, encoder, decoder, decode_function=F.log_softmax):
         super(Seq2seq, self).__init__(encoder_module=encoder, decoder_module=decoder, decode_function=decode_function)
 
-    def forward(self, inputs, input_lengths=None, targets={},
+    def flatten_parameters(self):
+        """
+        Flatten parameters of all components in the model.
+        """
+        self.encoder_module.rnn.flatten_parameters()
+        self.decoder_module.rnn.flatten_parameters()
+
+    def forward(self, inputs, input_lengths=None, targets=None,
                 teacher_forcing_ratio=0):
         # Unpack target variables
         target_output = target_variables.get('decoder_output', None)

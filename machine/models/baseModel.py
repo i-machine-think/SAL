@@ -19,8 +19,10 @@ class Model(nn.Module):
         self.decode_function = decode_function
 
     def flatten_parameters(self):
-        self.encoder_module.rnn.flatten_parameters()
-        self.decoder_module.rnn.flatten_parameters()
+        """
+        Flatten parameters of all components in the model.
+        """
+        raise NotImplementedError("Implement in subclass")
 
     def forward(self, inputs, input_lengths=None, targets={},
                 teacher_forcing_ratio=0):
