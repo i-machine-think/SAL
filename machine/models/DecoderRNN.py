@@ -152,7 +152,7 @@ class DecoderRNN(BaseRNN):
         return predicted_softmax, hidden, attn
 
     def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None,
-                    function=F.log_softmax, teacher_forcing_ratio=0, provided_attention=None):
+                    function=F.log_softmax, teacher_forcing_ratio=0):
 
         ret_dict = dict()
         if self.use_attention:
