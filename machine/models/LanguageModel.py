@@ -2,15 +2,15 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .baseModel import Model
+from .baseModel import baseModel
 
-class LanguageModel(Model):
+class LanguageModel(baseModel):
     """
     Implements a language model
     """
     
     def flatten_parameters(self):
-        raise NotImplementedError()
+        raise NotImplementedError("Function should be implemented")
 
     def forward(self, inputs, input_lengths=None):
         raise NotImplementedError("Language model should be implemented")

@@ -1,19 +1,21 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-class Model(nn.Module):
+import abc
+
+class baseModel(abc.ABC, nn.Module):
     """ 
     Abstract base class for models.
 
     Args:
         encoder_module (baseRNN) :  module that encodes inputs
         decoder_module (baseRNN, optional):   module to decode encoded inputs
-        decode_function (func, optional): function to generate symbols from output hidden states (default: F.log_softmax)
+        decode_function (callable, optional): function to generate symbols from output hidden states (default: F.log_softmax)
 
     """
 
     def __init__(self, encoder_module, decoder_module=None, decode_function=F.log_softmax):
-        super(Model, self).__init__()
+        super(baseModel, self).__init__()
         self.encoder_module = encoder_module
         self.decoder_module = decoder_module
         self.decode_function = decode_function
@@ -22,7 +24,7 @@ class Model(nn.Module):
         """
         Flatten parameters of all components in the model.
         """
-        raise NotImplementedError("Implement in subclass")
+        raise NotImplementedError("A generic version of this function should be implemented")
 
     def forward(self, inputs, input_lengths=None, targets={},
                 teacher_forcing_ratio=0):
@@ -48,4 +50,4 @@ class Model(nn.Module):
               predicted token IDs, *KEY_INPUT* : target outputs if provided for decoding, *KEY_ATTN_SCORE* : list of
               sequences, where each list is of attention weights }.
         """
-        raise NotImplementedError("Forward function should be implemented in subclass")
+        pass

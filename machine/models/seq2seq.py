@@ -1,9 +1,9 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .baseModel import Model
+from .baseModel import baseModel
 
-class Seq2seq(Model):
+class Seq2seq(baseModel):
     """ Standard sequence-to-sequence architecture with configurable encoder
     and decoder.
     """
