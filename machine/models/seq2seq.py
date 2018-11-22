@@ -18,10 +18,10 @@ class Seq2seq(BaseModel):
         self.encoder_module.rnn.flatten_parameters()
         self.decoder_module.rnn.flatten_parameters()
 
-    def forward(self, inputs, input_lengths=None, targets=None,
+    def forward(self, inputs, input_lengths=None, targets={},
                 teacher_forcing_ratio=0):
         # Unpack target variables
-        target_output = target_variables.get('decoder_output', None)
+        target_output = targets.get('decoder_output', None)
 
         encoder_outputs, encoder_hidden = self.encoder_module(inputs, input_lengths)
         result = self.decoder_module(inputs=target_output,
