@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 import abc
 
-class baseModel(abc.ABC, nn.Module):
+class BaseModel(abc.ABC, nn.Module):
     """ 
     Abstract base class for models.
 
@@ -15,7 +15,7 @@ class baseModel(abc.ABC, nn.Module):
     """
 
     def __init__(self, encoder_module, decoder_module=None, decode_function=F.log_softmax):
-        super(baseModel, self).__init__()
+        super(BaseModel, self).__init__()
         self.encoder_module = encoder_module
         self.decoder_module = decoder_module
         self.decode_function = decode_function
@@ -23,6 +23,12 @@ class baseModel(abc.ABC, nn.Module):
     def flatten_parameters(self):
         """
         Flatten parameters of all components in the model.
+        """
+        raise NotImplementedError("A generic version of this function should be implemented")
+
+    def reset_parameters(self):
+        """
+        Reset the parameters of all components in the model.
         """
         raise NotImplementedError("A generic version of this function should be implemented")
 
@@ -36,7 +42,7 @@ class baseModel(abc.ABC, nn.Module):
                 in the mini-batch, it must be provided when using variable length RNN (default: `None`)
             - **targets** (list, optional): list of sequences, whose length is the batch size and within which
               each sequence is a list of token IDs. This information is forwarded to the decoder.
-            - **teacher_forcing_ratio** (int, optional): The probability that teacher forcing will be used. A random number
+            - **teacher_forcing_ratio** (float, optional): The probability that teacher forcing will be used. A random number
               is drawn uniformly from 0-1 for every decoding token, and if the sample is smaller than the given value,
               teacher forcing would be used (default is 0)
 

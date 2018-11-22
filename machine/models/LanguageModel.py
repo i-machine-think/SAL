@@ -2,9 +2,9 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .baseModel import baseModel
+from .baseModel import BaseModel
 
-class LanguageModel(baseModel):
+class LanguageModel(BaseModel):
     """
     Implements a language model
     """
