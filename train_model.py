@@ -5,10 +5,6 @@ import logging
 import torch
 from torch.optim.lr_scheduler import StepLR
 import torchtext
-
-import random
-import pickle
-
 from collections import OrderedDict
 
 import machine
@@ -16,7 +12,6 @@ from machine.trainer import SupervisedTrainer
 from machine.models import EncoderRNN, DecoderRNN, Seq2seq
 from machine.loss import Perplexity, NLLLoss
 from machine.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, SymbolRewritingAccuracy, BLEU
-from machine.optim import Optimizer
 from machine.dataset import SourceField, TargetField
 from machine.evaluator import Predictor, Evaluator
 from machine.util.checkpoint import Checkpoint
@@ -37,12 +32,11 @@ def train_model():
     # Create command line argument parser and validate chosen options
     parser = init_argparser()
     opt = parser.parse_args()
-    validate_options(parser, opt)
+    opt = validate_options(parser, opt)
 
     # Prepare logging and data set
     init_logging(opt)
     src, tgt, train, dev, monitor_data = prepare_dataset(opt)
-    validate_dataset(train, dev, monitor_data, opt)
 
     # Prepare model
     if opt.load_checkpoint is not None:
@@ -52,9 +46,11 @@ def train_model():
 
     pad = output_vocab.stoi[tgt.pad_token]
     eos = tgt.eos_id
+    sos = tgt.SYM_EOS
+    unk = tgt.unk_token
 
     # Prepare training
-    losses, loss_weights, metrics = prepare_losses_and_metrics(opt, pad, eos)
+    losses, loss_weights, metrics = prepare_losses_and_metrics(opt, pad, unk, sos, eos, input_vocab, output_vocab)
     checkpoint_path = os.path.join(opt.output_dir, opt.load_checkpoint) if opt.resume else None
     trainer = create_trainer(opt, losses, loss_weights, metrics)
 
@@ -94,7 +90,6 @@ def init_argparser():
     parser.add_argument('--dropout_p_encoder', type=float, help='Dropout probability for the encoder', default=0.2)
     parser.add_argument('--dropout_p_decoder', type=float, help='Dropout probability for the decoder', default=0.2)
     parser.add_argument('--teacher_forcing_ratio', type=float, help='Teacher forcing ratio', default=0.2)
-    parser.add_argument('--teacher_forcing_ratio', type=float, help='Teacher forcing ratio', default=0.2)
     parser.add_argument('--attention', choices=['pre-rnn', 'post-rnn'], default=False)
     parser.add_argument('--attention_method', choices=['dot', 'mlp', 'concat'], default=None)
     parser.add_argument('--metrics', nargs='+', default=['seq_acc'], choices=['word_acc', 'seq_acc', 'target_acc', 'sym_rwr_acc', 'bleu'], help='Metrics to use')
@@ -120,17 +115,11 @@ def validate_options(parser, opt):
     if opt.resume and not opt.load_checkpoint:
         parser.error('load_checkpoint argument is required to resume training from checkpoint')
 
-    if opt.use_attention_loss and not opt.attention:
-        parser.error('Specify attention type to use attention loss')
-
     if not opt.attention and opt.attention_method:
         parser.error("Attention method provided, but attention is not turned on")
 
     if opt.attention and not opt.attention_method:
         parser.error("Attention turned on, but no attention method provided")
-
-    if opt.use_attention_loss and opt.attention_method == 'hard':
-        parser.error("Can't use attention loss in combination with non-differentiable hard attention method.")
 
     if torch.cuda.is_available():
         logging.info("Cuda device set to %i" % opt.cuda_device)
@@ -141,20 +130,19 @@ def validate_options(parser, opt):
             logging.info("No attention method provided. Using DOT method.")
             opt.attention_method = 'dot'
 
+    return opt
+
 
 def init_logging(opt):
     logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
     logging.info(opt)
+
 
 def prepare_dataset(opt):
     use_output_eos = not opt.ignore_output_eos
     src = SourceField()
     tgt = TargetField(include_eos=use_output_eos)
     tabular_data_fields = [('src', src), ('tgt', tgt)]
-
-    if opt.use_attention_loss or opt.attention_method == 'hard':
-        attn = AttentionField(use_vocab=False, ignore_index=IGNORE_INDEX)
-        tabular_data_fields.append(('attn', attn))
 
     max_len = opt.max_len
 
@@ -187,36 +175,6 @@ def prepare_dataset(opt):
         monitor_data[dataset] = m
 
     return src, tgt, train, dev, monitor_data
-
-
-def validate_dataset(train, dev, monitor_data, opt):
-    # When chosen to use attentive guidance, check whether the data is correct for the first
-    # example in the data set. We can assume that the other examples are then also correct.
-    if opt.use_attention_loss or opt.attention_method == 'hard':
-        if len(train) > 0:
-            if 'attn' not in vars(train[0]):
-                raise Exception("AttentionField not found in train data")
-            tgt_len = len(vars(train[0])['tgt']) - 1 # -1 for SOS
-            attn_len = len(vars(train[0])['attn']) - 1 # -1 for preprended ignore_index
-            if attn_len != tgt_len:
-                raise Exception("Length of output sequence does not equal length of attention sequence in train data")
-
-        if dev is not None and len(dev) > 0:
-            if 'attn' not in vars(dev[0]):
-                raise Exception("AttentionField not found in dev data")
-            tgt_len = len(vars(dev[0])['tgt']) - 1 # -1 for SOS
-            attn_len = len(vars(dev[0])['attn']) - 1 # -1 for preprended ignore_index
-            if attn_len != tgt_len:
-                raise Exception("Length of output sequence does not equal length of attention sequence in dev data.")
-
-        for m in monitor_data.values():
-            if len(m) > 0:
-                if 'attn' not in vars(m[0]):
-                    raise Exception("AttentionField not found in monitor data")
-                tgt_len = len(vars(m[0])['tgt']) - 1 # -1 for SOS
-                attn_len = len(vars(m[0])['attn']) - 1 # -1 for preprended ignore_index
-                if attn_len != tgt_len:
-                    raise Exception("Length of output sequence does not equal length of attention sequence in monitor data.")
 
 
 def load_model_from_checkpoint(opt, src, tgt):
@@ -266,15 +224,15 @@ def initialize_model(opt, src, tgt, train):
     for param in seq2seq.parameters():
         param.data.uniform_(-0.08, 0.08)
 
+    return seq2seq, input_vocab, output_vocab
+
         
-def prepare_losses_and_metrics(opt, pad, eos):
+def prepare_losses_and_metrics(opt, pad, unk, sos, eos, input_vocab, output_vocab):
+    use_output_eos = not opt.ignore_output_eos
+
     # Prepare loss and metrics
     losses = [NLLLoss(ignore_index=pad)]
     loss_weights = [1.]
-
-    if opt.use_attention_loss:
-        losses.append(AttentionLoss(ignore_index=IGNORE_INDEX))
-        loss_weights.append(opt.scale_attention_loss)
 
     for loss in losses:
       loss.to(device)
@@ -286,25 +244,25 @@ def prepare_losses_and_metrics(opt, pad, eos):
     if 'seq_acc' in opt.metrics:
       metrics.append(SequenceAccuracy(ignore_index=pad))
     if 'target_acc' in opt.metrics:
-      metrics.append(FinalTargetAccuracy(ignore_index=pad, eos_id=tgt.eos_id))
+      metrics.append(FinalTargetAccuracy(ignore_index=pad, eos_id=eos))
     if 'sym_rwr_acc' in opt.metrics:
         metrics.append(SymbolRewritingAccuracy(
           input_vocab=input_vocab,
           output_vocab=output_vocab,
           use_output_eos=use_output_eos,
-          output_sos_symbol=tgt.SYM_SOS,
-          output_pad_symbol=tgt.pad_token,
-          output_eos_symbol=tgt.SYM_EOS,
-          output_unk_symbol=tgt.unk_token))
+          output_sos_symbol=sos,
+          output_pad_symbol=pad,
+          output_eos_symbol=eos,
+          output_unk_symbol=unk))
     if 'bleu' in opt.metrics:
       metrics.append(BLEU(
         input_vocab=input_vocab,
         output_vocab=output_vocab,
         use_output_eos=use_output_eos,
-        output_sos_symbol=tgt.SYM_SOS,
-        output_pad_symbol=tgt.pad_token,
-        output_eos_symbol=tgt.SYM_EOS,
-        output_unk_symbol=tgt.unk_token))
+        output_sos_symbol=sos,
+        output_pad_symbol=pad,
+        output_eos_symbol=eos,
+        output_unk_symbol=unk))
 
     return losses, loss_weights, metrics
 
