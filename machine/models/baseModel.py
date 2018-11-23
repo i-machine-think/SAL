@@ -1,9 +1,16 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
+import sys
 import abc
+import types
 
-class BaseModel(abc.ABC, nn.Module):
+if sys.version_info >= (3, 4):
+    ABC = abc.ABC
+else:
+    ABC = abc.ABCMeta(types.StringType('ABC'), (), {})
+
+class BaseModel(ABC, nn.Module):
     """ 
     Abstract base class for models.
 
