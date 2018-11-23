@@ -14,10 +14,10 @@ from collections import OrderedDict
 import machine
 from machine.trainer import SupervisedTrainer
 from machine.models import EncoderRNN, DecoderRNN, Seq2seq
-from machine.loss import Perplexity, AttentionLoss, NLLLoss
-from machine.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, SymbolRewritingAccuracy
+from machine.loss import Perplexity, NLLLoss
+from machine.metrics import WordAccuracy, SequenceAccuracy, FinalTargetAccuracy, SymbolRewritingAccuracy, BLEU
 from machine.optim import Optimizer
-from machine.dataset import SourceField, TargetField, AttentionField
+from machine.dataset import SourceField, TargetField
 from machine.evaluator import Predictor, Evaluator
 from machine.util.checkpoint import Checkpoint
 
@@ -94,11 +94,10 @@ def init_argparser():
     parser.add_argument('--dropout_p_encoder', type=float, help='Dropout probability for the encoder', default=0.2)
     parser.add_argument('--dropout_p_decoder', type=float, help='Dropout probability for the decoder', default=0.2)
     parser.add_argument('--teacher_forcing_ratio', type=float, help='Teacher forcing ratio', default=0.2)
+    parser.add_argument('--teacher_forcing_ratio', type=float, help='Teacher forcing ratio', default=0.2)
     parser.add_argument('--attention', choices=['pre-rnn', 'post-rnn'], default=False)
-    parser.add_argument('--attention_method', choices=['dot', 'mlp', 'concat', 'hard'], default=None)
-    parser.add_argument('--use_attention_loss', action='store_true')
-    parser.add_argument('--scale_attention_loss', type=float, default=1.)
-    parser.add_argument('--xent_loss', type=float, default=1.)
+    parser.add_argument('--attention_method', choices=['dot', 'mlp', 'concat'], default=None)
+    parser.add_argument('--metrics', nargs='+', default=['seq_acc'], choices=['word_acc', 'seq_acc', 'target_acc', 'sym_rwr_acc', 'bleu'], help='Metrics to use')
     parser.add_argument('--full_focus', action='store_true')
     parser.add_argument('--batch_size', type=int, help='Batch size', default=32)
     parser.add_argument('--eval_batch_size', type=int, help='Batch size', default=128)
@@ -147,12 +146,10 @@ def init_logging(opt):
     logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
     logging.info(opt)
 
-
 def prepare_dataset(opt):
     use_output_eos = not opt.ignore_output_eos
     src = SourceField()
     tgt = TargetField(include_eos=use_output_eos)
-
     tabular_data_fields = [('src', src), ('tgt', tgt)]
 
     if opt.use_attention_loss or opt.attention_method == 'hard':
@@ -258,7 +255,6 @@ def initialize_model(opt, src, tgt, train):
     decoder = DecoderRNN(len(tgt.vocab), opt.max_len, decoder_hidden_size,
                          dropout_p=opt.dropout_p_decoder,
                          n_layers=opt.n_layers,
-                         use_attention=opt.attention,
                          attention_method=opt.attention_method,
                          full_focus=opt.full_focus,
                          bidirectional=opt.bidirectional,
@@ -270,14 +266,11 @@ def initialize_model(opt, src, tgt, train):
     for param in seq2seq.parameters():
         param.data.uniform_(-0.08, 0.08)
 
-    return seq2seq, input_vocab, output_vocab
-
-
+        
 def prepare_losses_and_metrics(opt, pad, eos):
     # Prepare loss and metrics
     losses = [NLLLoss(ignore_index=pad)]
-    # loss_weights = [1.]
-    loss_weights = [float(opt.xent_loss)]
+    loss_weights = [1.]
 
     if opt.use_attention_loss:
         losses.append(AttentionLoss(ignore_index=IGNORE_INDEX))
@@ -286,20 +279,32 @@ def prepare_losses_and_metrics(opt, pad, eos):
     for loss in losses:
       loss.to(device)
 
-    metrics = [WordAccuracy(ignore_index=pad), SequenceAccuracy(ignore_index=pad),
-               FinalTargetAccuracy(ignore_index=pad, eos_id=eos)]
-
-    # Since we need the actual tokens to determine k-grammar accuracy,
-    # we also provide the input and output vocab and relevant special symbols
-    # metrics.append(SymbolRewritingAccuracy(
-    #     input_vocab=input_vocab,
-    #     output_vocab=output_vocab,
-    #     use_output_eos=use_output_eos,
-    #     input_pad_symbol=src.pad_token,
-    #     output_sos_symbol=tgt.SYM_SOS,
-    #     output_pad_symbol=tgt.pad_token,
-    #     output_eos_symbol=tgt.SYM_EOS,
-    #     output_unk_symbol=tgt.unk_token))
+    metrics = []
+    
+    if 'word_acc' in opt.metrics:
+      metrics.append(WordAccuracy(ignore_index=pad))
+    if 'seq_acc' in opt.metrics:
+      metrics.append(SequenceAccuracy(ignore_index=pad))
+    if 'target_acc' in opt.metrics:
+      metrics.append(FinalTargetAccuracy(ignore_index=pad, eos_id=tgt.eos_id))
+    if 'sym_rwr_acc' in opt.metrics:
+        metrics.append(SymbolRewritingAccuracy(
+          input_vocab=input_vocab,
+          output_vocab=output_vocab,
+          use_output_eos=use_output_eos,
+          output_sos_symbol=tgt.SYM_SOS,
+          output_pad_symbol=tgt.pad_token,
+          output_eos_symbol=tgt.SYM_EOS,
+          output_unk_symbol=tgt.unk_token))
+    if 'bleu' in opt.metrics:
+      metrics.append(BLEU(
+        input_vocab=input_vocab,
+        output_vocab=output_vocab,
+        use_output_eos=use_output_eos,
+        output_sos_symbol=tgt.SYM_SOS,
+        output_pad_symbol=tgt.pad_token,
+        output_eos_symbol=tgt.SYM_EOS,
+        output_unk_symbol=tgt.unk_token))
 
     return losses, loss_weights, metrics
 
