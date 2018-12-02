@@ -172,7 +172,7 @@ class LogCollection(object):
                         ax.tick_params(
                             axis='both', which='major', labelsize=20)
                         plt.xlabel("Epochs", fontsize=24)
-                        plt.ylabel("Sequence Accuracy", fontsize=24)
+                        plt.ylabel(metric_name, fontsize=24)
                         plt.title(title)
 
         plt.legend()
