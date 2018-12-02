@@ -1,8 +1,8 @@
 from __future__ import print_function
 import math
 import torch.nn as nn
-import torch
 import numpy as np
+
 
 class Loss(object):
     """ Base class for encapsulation of the loss functions.
@@ -39,7 +39,8 @@ class Loss(object):
         self.target = target
         self.criterion = criterion
         if not issubclass(type(self.criterion), nn.modules.loss._Loss):
-            raise ValueError("Criterion has to be a subclass of torch.nn._Loss")
+            raise ValueError(
+                "Criterion has to be a subclass of torch.nn._Loss")
         # accumulated loss
         self.acc_loss = 0
         # normalization term
@@ -110,14 +111,15 @@ class Loss(object):
     def backward(self, retain_graph=False):
         """ Backpropagate the computed loss.
         """
-        if type(self.acc_loss) is int:
+        if isinstance(self.acc_loss, int):
             raise ValueError("No loss to back propagate.")
         self.acc_loss.backward(retain_graph=retain_graph)
 
     def scale_loss(self, factor):
         """ Scale loss with a factor
         """
-        self.acc_loss*=factor
+        self.acc_loss *= factor
+
 
 class NLLLoss(Loss):
     """ Batch averaged negative log-likelihood loss.
@@ -138,7 +140,7 @@ class NLLLoss(Loss):
 
         super(NLLLoss, self).__init__(
             self._NAME, self._SHORTNAME, self._INPUTS, self._TARGETS,
-            nn.NLLLoss(ignore_index=ignore_index, size_average=size_average))
+            nn.NLLLoss(ignore_index=ignore_index, reduction='elementwise_mean' if size_average else 'sum'))
 
     def get_loss(self):
         if isinstance(self.acc_loss, int):
@@ -156,6 +158,7 @@ class NLLLoss(Loss):
         self.acc_loss += self.criterion(outputs, target)
         self.norm_term += 1
 
+
 class Perplexity(NLLLoss):
     """ Language model perplexity loss.
 
@@ -172,7 +175,8 @@ class Perplexity(NLLLoss):
     _INPUTS = "decoder_output"
 
     def __init__(self, ignore_index=-100):
-        super(Perplexity, self).__init__(ignore_index=ignore_index, size_average=False)
+        super(Perplexity, self).__init__(
+            ignore_index=ignore_index, size_average=False)
 
     def eval_step(self, outputs, target):
         self.acc_loss += self.criterion(outputs, target)
@@ -188,23 +192,3 @@ class Perplexity(NLLLoss):
             print("WARNING: Loss exceeded maximum value, capping to e^100")
             return math.exp(Perplexity._MAX_EXP)
         return math.exp(nll)
-
-class AttentionLoss(NLLLoss):
-    """ Cross entropy loss over attentions
-
-    Args:
-        ignore_index (int, optional): index of token to be masked
-    """
-    _NAME = "Attention Loss"
-    _SHORTNAME = "attn_loss"
-    _INPUTS = "attention_score"
-    _TARGETS = "attention_target"
-
-    def __init__(self, ignore_index=-1):
-        super(AttentionLoss, self).__init__(ignore_index=ignore_index, size_average=True)
-
-    def eval_step(self, step_outputs, step_target):
-        batch_size = step_target.size(0)
-        outputs = torch.log(step_outputs.contiguous().view(batch_size, -1).clamp(min=1e-20))
-        self.acc_loss += self.criterion(outputs, step_target)
-        self.norm_term += 1

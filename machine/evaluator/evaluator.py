@@ -3,9 +3,11 @@ from __future__ import print_function, division
 import torch
 import torchtext
 
-import machine
 from machine.loss import NLLLoss
 from machine.metrics import WordAccuracy, SequenceAccuracy
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class Evaluator(object):
     """ Class to evaluate models with given datasets.
@@ -15,7 +17,8 @@ class Evaluator(object):
         batch_size (int, optional): batch size for evaluator (default: 64)
     """
 
-    def __init__(self, loss=[NLLLoss()], metrics=[WordAccuracy(), SequenceAccuracy()], batch_size=64):
+    def __init__(self, loss=[NLLLoss()], metrics=[
+                 WordAccuracy(), SequenceAccuracy()], batch_size=64):
         self.losses = loss
         self.metrics = metrics
         self.batch_size = batch_size
@@ -40,7 +43,8 @@ class Evaluator(object):
 
         return metrics
 
-    def compute_batch_loss(self, decoder_outputs, decoder_hidden, other, target_variable):
+    def compute_batch_loss(self, decoder_outputs,
+                           decoder_hidden, other, target_variable):
         """
         Compute the loss for the current batch.
 
@@ -58,11 +62,13 @@ class Evaluator(object):
         for loss in losses:
             loss.reset()
 
-        losses = self.update_loss(losses, decoder_outputs, decoder_hidden, other, target_variable)
+        losses = self.update_loss(
+            losses, decoder_outputs, decoder_hidden, other, target_variable)
 
         return losses
 
-    def update_loss(self, losses, decoder_outputs, decoder_hidden, other, target_variable):
+    def update_loss(self, losses, decoder_outputs,
+                    decoder_hidden, other, target_variable):
         """
         Update a list with losses for current batch
 
@@ -107,24 +113,27 @@ class Evaluator(object):
             metric.reset()
 
         # create batch iterator
-        iterator_device = torch.cuda.current_device() if torch.cuda.is_available() else -1
         batch_iterator = torchtext.data.BucketIterator(
             dataset=data, batch_size=self.batch_size,
             sort=True, sort_key=lambda x: len(x.src),
-            device=iterator_device, train=False)
+            device=device, train=False)
 
         # loop over batches
         with torch.no_grad():
             for batch in batch_iterator:
-                input_variable, input_lengths, target_variable = get_batch_data(batch)
+                input_variable, input_lengths, target_variable = get_batch_data(
+                    batch)
 
-                decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths.tolist(), target_variable)
+                decoder_outputs, decoder_hidden, other = model(
+                    input_variable, input_lengths.tolist(), target_variable)
 
                 # Compute metric(s) over one batch
-                metrics = self.update_batch_metrics(metrics, other, target_variable)
-                
+                metrics = self.update_batch_metrics(
+                    metrics, other, target_variable)
+
                 # Compute loss(es) over one batch
-                losses = self.update_loss(losses, decoder_outputs, decoder_hidden, other, target_variable)
+                losses = self.update_loss(losses, decoder_outputs,
+                                          decoder_hidden, other, target_variable)
 
         model.train(previous_train_mode)
 

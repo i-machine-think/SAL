@@ -1,10 +1,13 @@
+"""Metrics."""
+
 from __future__ import print_function
+from collections import Counter
 import math
-import torch
-import torch.nn as nn
 import numpy as np
+import torch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class Metric(object):
     """ Base class for encapsulation of the metrics functions.
@@ -53,6 +56,7 @@ class Metric(object):
         """
         raise NotImplementedError("Implement in subclass")
 
+
 class WordAccuracy(Metric):
     """
     Batch average of word accuracy.
@@ -70,11 +74,12 @@ class WordAccuracy(Metric):
         self.word_match = 0
         self.word_total = 0
 
-        super(WordAccuracy, self).__init__(self._NAME, self._SHORTNAME, self._INPUT)
+        super(WordAccuracy, self).__init__(
+            self._NAME, self._SHORTNAME, self._INPUT)
 
     def get_val(self):
         if self.word_total != 0:
-            return float(self.word_match)/self.word_total
+            return float(self.word_match) / self.word_total
         else:
             return 0
 
@@ -85,14 +90,16 @@ class WordAccuracy(Metric):
     def eval_batch(self, outputs, targets):
         # evaluate batch
         targets = targets['decoder_output']
-        batch_size = targets.size(0)
+        targets.size(0)
 
         for step, step_output in enumerate(outputs):
             target = targets[:, step + 1]
             non_padding = target.ne(self.ignore_index)
-            correct = outputs[step].view(-1).eq(target).masked_select(non_padding).long().sum().item()
+            correct = outputs[step].view(-1).eq(
+                target).masked_select(non_padding).long().sum().item()
             self.word_match += correct
             self.word_total += non_padding.long().sum().item()
+
 
 class FinalTargetAccuracy(Metric):
     """
@@ -106,17 +113,19 @@ class FinalTargetAccuracy(Metric):
     _SHORTNAME = "target_acc"
     _INPUT = "sequence"
 
-    def __init__(self, ignore_index, eos_id):    # TODO check if returns error if default is not given
+    # TODO check if returns error if default is not given
+    def __init__(self, ignore_index, eos_id):
         self.ignore_index = ignore_index
         self.eos = eos_id
         self.word_match = 0
         self.word_total = 0
 
-        super(FinalTargetAccuracy, self).__init__(self._NAME, self._SHORTNAME, self._INPUT)
+        super(FinalTargetAccuracy, self).__init__(
+            self._NAME, self._SHORTNAME, self._INPUT)
 
     def get_val(self):
         if self.target_total != 0:
-            return float(self.target_match)/self.target_total
+            return float(self.target_match) / self.target_total
         else:
             return 0
 
@@ -136,21 +145,27 @@ class FinalTargetAccuracy(Metric):
             target = targets[:, step + 1]
 
             # compute mask for current step
-            cur_mask = target.ne(self.ignore_index)*target.ne(self.eos) # return 1 only if not equal to pad or <eos>
+            # return 1 only if not equal to pad or <eos>
+            cur_mask = target.ne(self.ignore_index) * target.ne(self.eos)
 
             # compute whether next step is <eos> or pad
             try:
                 target_next = targets[:, step + 2]
-                mask_next = target_next.eq(self.ignore_index)+target_next.eq(self.eos)
-                mask = mask_next*cur_mask
+                mask_next = target_next.eq(
+                    self.ignore_index) + target_next.eq(self.eos)
+                mask = mask_next * cur_mask
             except IndexError:
-                # IndexError if we are dealing with last step, in case just apply cur mask
+                # IndexError if we are dealing with last step, in case just
+                # apply cur mask
                 mask = cur_mask
 
-            # compute correct, masking all outputs that are padding or eos, or are not followed by padding or eos
-            correct = step_output.view(-1).eq(target).masked_select(mask).long().sum().item()
+            # compute correct, masking all outputs that are padding or eos, or
+            # are not followed by padding or eos
+            correct = step_output.view(-1).eq(
+                target).masked_select(mask).long().sum().item()
 
             self.target_match += correct
+
 
 class SequenceAccuracy(Metric):
     """
@@ -169,11 +184,12 @@ class SequenceAccuracy(Metric):
         self.seq_match = 0
         self.seq_total = 0
 
-        super(SequenceAccuracy, self).__init__(self._NAME, self._SHORTNAME, self._INPUT)
+        super(SequenceAccuracy, self).__init__(
+            self._NAME, self._SHORTNAME, self._INPUT)
 
     def get_val(self):
         if self.seq_total != 0:
-            return float(self.seq_match)/self.seq_total
+            return float(self.seq_match) / self.seq_total
         else:
             return 0
 
@@ -188,21 +204,24 @@ class SequenceAccuracy(Metric):
         batch_size = targets.size(0)
 
         # compute sequence accuracy over batch
-        match_per_seq = torch.zeros(batch_size, dtype=torch.float, device=device)
-        total_per_seq = torch.zeros(batch_size, dtype=torch.float, device=device)
+        match_per_seq = torch.zeros(
+            batch_size, dtype=torch.float, device=device)
+        total_per_seq = torch.zeros(
+            batch_size, dtype=torch.float, device=device)
 
         for step, step_output in enumerate(outputs):
             target = targets[:, step + 1]
 
             non_padding = target.ne(self.ignore_index)
 
-            correct_per_seq = (outputs[step].view(-1).eq(target)*non_padding)
+            correct_per_seq = (outputs[step].view(-1).eq(target) * non_padding)
             # correct_per_seq = (outputs[step].view(-1).eq(target)*non_padding).data
             match_per_seq += correct_per_seq.float()
             total_per_seq += non_padding.float()
 
         self.seq_match += match_per_seq.eq(total_per_seq).long().sum()
         self.seq_total += total_per_seq.shape[0]
+
 
 class SymbolRewritingAccuracy(Metric):
     """
@@ -226,23 +245,32 @@ class SymbolRewritingAccuracy(Metric):
     _SHORTNAME = "sym_rwr_acc"
     _INPUT = "seqlist"
 
-    def __init__(self, input_vocab, output_vocab, use_output_eos, input_pad_symbol, output_sos_symbol, output_pad_symbol, output_eos_symbol, output_unk_symbol):
+    def __init__(self, input_vocab, output_vocab, use_output_eos,
+                 output_sos_symbol, output_pad_symbol, output_eos_symbol,
+                 output_unk_symbol):
         self.input_vocab = input_vocab
         self.output_vocab = output_vocab
 
         self.use_output_eos = use_output_eos
 
-        # instead of passing all these arguments, we could also hard-code to use <sos>, <pad>, <unk> and <eos>
-        self.input_pad_symbol = input_pad_symbol
+        # instead of passing all these arguments, we could also hard-code to
+        # use <sos>, <pad>, <unk> and <eos>
         self.output_sos_symbol = output_sos_symbol
         self.output_pad_symbol = output_pad_symbol
         self.output_eos_symbol = output_eos_symbol
         self.output_unk_symbol = output_unk_symbol
 
+        self.grammar_vocab = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+                              'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'T', 'U',
+                              'V', 'W', 'X', 'Y', 'Z', 'AS', 'BS', 'CS', 'DS',
+                              'ES', 'FS', 'GS', 'HS', 'IS', 'JS', 'KS', 'LS',
+                              'MS', 'NS', 'OS']
+
         self.seq_correct = 0
         self.seq_total = 0
 
-        super(SymbolRewritingAccuracy, self).__init__(self._NAME, self._SHORTNAME, self._INPUT)
+        super(SymbolRewritingAccuracy, self).__init__(
+            self._NAME, self._SHORTNAME, self._INPUT)
 
     def get_val(self):
         """
@@ -274,16 +302,13 @@ class SymbolRewritingAccuracy(Metric):
         Returns:
             bool: whether the prediction is coming from the grammar
         '''
-
-        grammar_vocab = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'T', 'U',
-                         'V', 'W', 'X', 'Y', 'Z', 'AS', 'BS', 'CS', 'DS', 'ES', 'FS', 'GS', 'HS', 'IS', 'JS', 'KS', 'LS', 'MS', 'NS', 'OS']
-
         all_correct = False
         # Check if the length is correct
-        length_check = True if len(prediction) == 3 * len(grammar) else False
-        # Check if everything falls in the same bucket, and there are no repeats
+        # length_check = True if len(prediction) == 3 * len(grammar) else False
+        # Check if everything falls in the same bucket, and there are no
+        # repeats
         for idx, inp in enumerate(grammar):
-            vocab_idx = grammar_vocab.index(inp) + 1
+            vocab_idx = self.grammar_vocab.index(inp) + 1
             span = prediction[idx * 3:idx * 3 + 3]
 
             span_str = " ".join(span)
@@ -326,11 +351,13 @@ class SymbolRewritingAccuracy(Metric):
             grammar = input_variable[i_batch_element, :].data.cpu().numpy()
             prediction = predictions[i_batch_element, :].data.cpu().numpy()
 
-            # Convert indices to strings
-            # Remove all padding from the grammar.
+            # Convert indices to strings,
+            # Remove all padding from the grammar and possible extra out-of-vocabulary
+            # tokens such as an EOS token.
             grammar = [self.input_vocab.itos[token] for token in grammar
-                       if self.input_vocab.itos[token] != self.input_pad_symbol]
-            prediction = [self.output_vocab.itos[token] for token in prediction]
+                       if self.input_vocab.itos[token] in self.grammar_vocab]
+            prediction = [self.output_vocab.itos[token]
+                          for token in prediction]
 
             # Each input symbol has to produce exactly three outputs
             required_output_length = 3 * len(grammar)
@@ -348,7 +375,7 @@ class SymbolRewritingAccuracy(Metric):
             # also be predicted by the model, especially at the beginning of training due to random
             # weight initialization. Since these render the output incorrect and cause an error in
             # correct(), we check for their presence here.
-            if  self.output_eos_symbol in prediction_correct_length or \
+            if self.output_eos_symbol in prediction_correct_length or \
                     self.output_sos_symbol in prediction_correct_length or \
                     self.output_pad_symbol in prediction_correct_length or \
                     self.output_unk_symbol in prediction_correct_length:
@@ -357,3 +384,116 @@ class SymbolRewritingAccuracy(Metric):
             # Check whether the prediction actually comes from the grammar
             if self.correct(grammar, prediction_correct_length):
                 self.seq_correct += 1
+
+
+class BLEU(Metric):
+    """BLEU-4 metric.
+
+    Calculates the BLEU-4 score. Taken from
+    https://github.com/MaximumEntropy/Seq2Seq-PyTorch
+    """
+
+    _NAME = "BLEU"
+    _SHORTNAME = "bleu"
+    _INPUT = "seqlist"
+
+    def __init__(self, input_vocab, output_vocab, use_output_eos,
+                 output_sos_symbol, output_pad_symbol, output_eos_symbol,
+                 output_unk_symbol):
+        self.input_vocab = input_vocab
+        self.output_vocab = output_vocab
+
+        self.use_output_eos = use_output_eos
+
+        # instead of passing all these arguments, we could also hard-code to
+        # use <sos>, <pad>, <unk> and <eos>
+        self.output_sos_symbol = output_sos_symbol
+        self.output_pad_symbol = output_pad_symbol
+        self.output_eos_symbol = output_eos_symbol
+        self.output_unk_symbol = output_unk_symbol
+
+        self.stats = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.])
+
+        super(BLEU, self).__init__(self._NAME, self._SHORTNAME, self._INPUT)
+
+    def get_val(self):
+        """
+        Get the average accuracy metric of all processed batches
+        Returns:
+            float: average accuracy
+        """
+        return 100 * self.bleu(self.stats)
+
+    def reset(self):
+        """
+        Reset after all batches have been processed
+        """
+        self.stats = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.])
+
+    def bleu_stats(self, hypothesis, reference):
+        """Compute statistics for BLEU."""
+        stats = []
+        stats.append(len(hypothesis))
+        stats.append(len(reference))
+        for n in range(1, 5):
+            s_ngrams = Counter(
+                [tuple(hypothesis[i:i + n])
+                 for i in range(len(hypothesis) + 1 - n)]
+            )
+            r_ngrams = Counter(
+                [tuple(reference[i:i + n])
+                 for i in range(len(reference) + 1 - n)]
+            )
+
+            stats.append(max([sum((s_ngrams & r_ngrams).values()), 0]))
+            stats.append(max([len(hypothesis) + 1 - n, 0]))
+        return stats
+
+    def bleu(self, stats):
+        """Compute BLEU given n-gram statistics."""
+        if len(list(filter(lambda x: x == 0, stats))) > 0:
+            return 0
+        (c, r) = stats[:2]
+        log_bleu_prec = sum(
+            [math.log(float(x) / y) for x, y in zip(stats[2::2], stats[3::2])]
+        ) / 4.
+        return math.exp(min([0, 1 - float(r) / c]) + log_bleu_prec)
+
+    def eval_batch(self, outputs, targets):
+        """Eval batch."""
+        # batch_size X N variable containing the indices of the model's input,
+        # where N is the longest input
+        references = targets['decoder_output']
+
+        batch_size = references.size(0)
+
+        # Convert to batch_size x M variable containing the indices of the model's output, where M
+        # is the longest output
+        hypotheses = torch.stack(outputs, dim=1).view(batch_size, -1)
+
+        # Current implementation does not allow batch-wise evaluation
+        for i_batch_element in range(batch_size):
+            # Extract the current example and move to cpu
+            reference = list(references[i_batch_element, :].data.cpu().numpy())
+            hypothesis = list(
+                hypotheses[i_batch_element, :].data.cpu().numpy())
+
+            # Convert indices to strings,
+            # Remove all padding from the grammar and possible extra out-of-vocabulary
+            # tokens such as an EOS token.
+
+            # Remove SOS
+            reference = reference[1:]
+            reference = [self.output_vocab.itos[token] for token in reference]
+
+            # Remove EOS (and everyting after)
+            eos_index = reference.index(self.output_eos_symbol)
+            reference = reference[:eos_index]
+
+            hypothesis = [self.output_vocab.itos[token]
+                          for token in hypothesis]
+            if self.output_eos_symbol in hypothesis:
+                eos_index = hypothesis.index(self.output_eos_symbol)
+                hypothesis = hypothesis[:eos_index]
+
+            self.stats += np.array(self.bleu_stats(hypothesis, reference))
