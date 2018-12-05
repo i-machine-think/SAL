@@ -130,8 +130,10 @@ class LogCollection(object):
                     self.logs.append(Log(f))
                     self.log_names.append(log_name)
 
-    def plot_metric(self, metric_name, restrict_model=lambda x: True, restrict_data=lambda x: True,
-                    data_name_parser=None, color_group=False, title='', eor=-1, show_figure=True, **line_kwargs):
+    def plot_metric(self, metric_name, restrict_model=lambda x: True, 
+                    restrict_data=lambda x: True, data_name_parser=None,
+                    color_group=False, title='', eor=-1,
+                    show_figure=True, **line_kwargs):
         """
         Plot all values for a specific metrics. A function restrict can be
         inputted to restrict the set of models being plotted. A function group
