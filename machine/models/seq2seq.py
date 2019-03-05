@@ -10,7 +10,11 @@ class Seq2seq(BaseModel):
 
     def __init__(self, encoder, decoder, decode_function=F.log_softmax):
         super(Seq2seq, self).__init__(encoder_module=encoder,
-                                      decoder_module=decoder, decode_function=decode_function)
+                                      decoder_module=decoder,
+                                      decode_function=decode_function,
+                                      uniform_init=0, init_glorot=False)
+        # Initialize Weights
+        self._init_weights(uniform_init, init_glorot)
 
     def flatten_parameters(self):
         """
@@ -32,3 +36,15 @@ class Seq2seq(BaseModel):
                                      function=self.decode_function,
                                      teacher_forcing_ratio=teacher_forcing_ratio)
         return result
+
+    def _init_weights(self, uniform_init=0.0, init_glorot=False):
+        # initialize weights using uniform distribution
+        if uniform_init > 0.0:
+            for p in self.parameters():
+                p.data.uniform_(-model_opt.param_init, model_opt.param_init)
+
+        # xavier/glorot initialization if init_glorot
+        if init_glorot:
+            for p in self.parameters():
+                if p.dim() > 1:
+                    nn.init.xavier_uniform_(p)
