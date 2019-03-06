@@ -110,6 +110,14 @@ echo "\n\nTest multiple layers with pre-rnn attention"
 python3 train_model.py --train $TRAIN_PATH --dev $DEV_PATH --output_dir $EXPT_DIR --print_every 50 --embedding_size $EMB_SIZE --hidden_size $H_SIZE --rnn_cell $CELL --epoch $EPOCH --save_every $CP_EVERY --n_layers 3 --attention 'post-rnn' --attention_method 'dot'
 ERR=$((ERR+$?)); EX=$((EX+1))
 
+echo "\n\nTest Xavier/Glorot Initialization"
+python3 train_model.py --train $TRAIN_PATH --dev $DEV_PATH --output_dir $EXPT_DIR --print_every 50 --embedding_size $EMB_SIZE --hidden_size $H_SIZE --rnn_cell $CELL --epoch 1 --save_every $CP_EVERY --n_layers 2 --glorot_init
+ERR=$((ERR+$?)); EX=$((EX+1))
+
+echo "\n\nTest uniform Initialization"
+python3 train_model.py --train $TRAIN_PATH --dev $DEV_PATH --output_dir $EXPT_DIR --print_every 50 --embedding_size $EMB_SIZE --hidden_size $H_SIZE --rnn_cell $CELL --epoch 1 --save_every $CP_EVERY --n_layers 2 --uniform_init 0.1
+ERR=$((ERR+$?)); EX=$((EX+1))
+
 echo "\n\n\n$EX tests executed, $ERR tests failed\n\n"
 
 rm -r $EXPT_DIR

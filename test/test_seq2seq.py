@@ -19,10 +19,10 @@ class TestSeq2seq(unittest.TestCase):
         Seq2seq(self.encoder, self.decoder, uniform_init=1)
 
     def test_xavier_init(self):
-        Seq2seq(self.encoder, self.decoder, init_glorot=True)
+        Seq2seq(self.encoder, self.decoder, glorot_init=True)
 
     def test_uniform_xavier_init(self):
-        Seq2seq(self.encoder, self.decoder, uniform_init=1, init_glorot=True)
+        Seq2seq(self.encoder, self.decoder, uniform_init=1, glorot_init=True)
 
 
 if __name__ == '__main__':
