@@ -85,6 +85,11 @@ def init_argparser():
                         choices=['adam', 'adadelta', 'adagrad', 'adamax', 'rmsprop', 'sgd'])
     parser.add_argument('--max_len', type=int,
                         help='Maximum sequence length', default=50)
+    parser.add_argument('--uniform_init', type=float,
+                        help='Initializes weights of model from uniform distribution in range (-uniform_init, uniform_init). \
+                        If <= 0, standard pytorch init is used. (default, 0.0)', default=0.0)
+    parser.add_argument('--glorot_init', action='store_true',
+                        help='Initializes weights of model using glorot/xavier distribution')
     parser.add_argument(
         '--rnn_cell', help="Chose type of rnn cell", default='lstm')
     parser.add_argument('--bidirectional', action='store_true',
@@ -252,7 +257,9 @@ def initialize_model(opt, src, tgt, train):
                          bidirectional=opt.bidirectional,
                          rnn_cell=opt.rnn_cell,
                          eos_id=tgt.eos_id, sos_id=tgt.sos_id)
-    seq2seq = Seq2seq(encoder, decoder)
+    seq2seq = Seq2seq(encoder, decoder,
+                      glorot_init=opt.glorot_init,
+                      uniform_init=opt.uniform_init)
     seq2seq.to(device)
 
     return seq2seq, input_vocab, output_vocab
