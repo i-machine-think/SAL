@@ -21,21 +21,18 @@ class Receiver(BaseRNN):
 
 	"""
 
-	def __init__(self, vocab_size, embedding_dim, hidden_size, rnn_cell='gru'):
+	def __init__(self, vocab_size, embedding_size, hidden_size, rnn_cell='gru'):
 		super().__init__(vocab_size, -1, hidden_size,
 						 input_dropout_p=0, dropout_p=0,
 						 n_layers=1, rnn_cell=rnn_cell)
 
-		self.rnn = self.rnn_cell(embedding_dim, hidden_size, num_layers=1, batch_first=True)
-		self.embedding = nn.Parameter(torch.empty((vocab_size, embedding_dim), dtype=torch.float32))
+		self.rnn = self.rnn_cell(embedding_size, hidden_size, num_layers=1, batch_first=True)
+		self.embedding = nn.Parameter(torch.empty((vocab_size, embedding_size), dtype=torch.float32))
 
 		self.reset_parameters()
 
 	def reset_parameters(self):
 		nn.init.normal_(self.embedding, 0.0, 0.1)
-
-		nn.init.normal_(self.aff_transform.weight, 0, 0.1)
-		nn.init.constant_(self.aff_transform.bias, 0)
 
 		nn.init.xavier_uniform_(self.rnn.weight_ih_l0)
 		nn.init.orthogonal_(self.rnn.weight_hh_l0)
