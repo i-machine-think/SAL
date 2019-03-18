@@ -1,3 +1,6 @@
+import torch
+import torch.nn as nn
+
 from .baseRNN import BaseRNN
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -43,12 +46,14 @@ class Receiver(BaseRNN):
 		nn.init.constant_(self.rnn.bias_hh_l0[self.hidden_size:2 * self.hidden_size], val=1)
 
 	def forward(self, m):
+		batch_size = m.shape[0]
+
 		# h0
-		h = torch.zeros([self.batch_size, self.hidden_size], device=device)
+		h = torch.zeros([batch_size, self.hidden_size], device=device)
 
 		if type(self.rnn) is nn.LSTM:
 			# c0
-			c = torch.zeros([self.batch_size, self.hidden_size], device=device)
+			c = torch.zeros([batch_size, self.hidden_size], device=device)
 
 			state = (h[None, ...], c[None, ...])
 
