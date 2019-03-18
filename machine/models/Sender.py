@@ -20,21 +20,21 @@ class Sender(BaseRNN):
 			embedding_size (int): the size of the embedding of input variables
 			hidden_size (int): the size of the hidden dimension of the rnn
 			sos_id (int): index of the start of sequence symbol
-        	eos_id (int): index of the end of sequence symbol
+			eos_id (int): index of the end of sequence symbol
 			rnn_cell (str, optional): type of RNN cell (default: gru)
-		    greedy (bool, optional): True if use argmax at prediction time, False if sample (default: False)
+			greedy (bool, optional): True if use argmax at prediction time, False if sample (default: False)
 
 		Inputs:
-		    tau (float): Temperature to be used for Gumbel Softmax.
-		    hidden_state (torch.tensor, optional): The hidden state to start the decoding. (default=None)
-		    Shape [batch_size, hidden_size]. If None, batch_size=1.
+			tau (float): Temperature to be used for Gumbel Softmax.
+			hidden_state (torch.tensor, optional): The hidden state to start the decoding. (default=None)
+			Shape [batch_size, hidden_size]. If None, batch_size=1.
 
 		Outputs:
-		    output_sequence (torch.tensor): The generated decoded sequences. Shape [batch_size, output_len+1]
-		    E.g. of a sequence at prediction time [sos_id, predicted_1, predicted_2,...., predicted_outputlen]
-		    sequence_lengths (torch.tensor): The lengths of all the sequences in the batch. Shape [batch_size]
+			output_sequence (torch.tensor): The generated decoded sequences. Shape [batch_size, output_len+1]
+			E.g. of a sequence at prediction time [sos_id, predicted_1, predicted_2,...., predicted_outputlen]
+			sequence_lengths (torch.tensor): The lengths of all the sequences in the batch. Shape [batch_size]
 
-		"""
+	"""
 
 	def __init__(self, vocab_size, output_len, embedding_size,
 				 hidden_size, sos_id, eos_id, rnn_cell='gru', greedy=False):
