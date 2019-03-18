@@ -41,20 +41,6 @@ class Receiver(BaseRNN):
 		nn.init.constant_(self.rnn.bias_hh_l0, val=0)
 		nn.init.constant_(self.rnn.bias_hh_l0[self.hidden_size:2 * self.hidden_size], val=1)
 
-	def forward(self, m):
-		batch_size = m.shape[0]
-
-		# h0
-		h = torch.zeros([batch_size, self.hidden_size], device=device)
-
-		if type(self.rnn) is nn.LSTM:
-			# c0
-			c = torch.zeros([batch_size, self.hidden_size], device=device)
-
-			state = (h[None, ...], c[None, ...])
-
-		else:
-			state = h[None, ...]
-
-		emb = torch.matmul(m, self.embedding) if self.training else self.embedding[m]
-		return self.rnn(emb, state)
+	def forward(self, messages):
+		emb = torch.matmul(messages, self.embedding) if self.training else self.embedding[messages]
+		return self.rnn(emb)
