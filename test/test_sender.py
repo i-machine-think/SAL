@@ -21,7 +21,7 @@ class TestSender(unittest.TestCase):
     def test_lstm_hidden_train(self, mock_gumbel):
         sender = Sender(self.vocab_size, self.max_len, self.embedding_size,
                      self.hidden_size, self.sos_id, self.eos_id, 
-                     rnn_cell='lstm', greedy=True)
+                     rnn_cell='lstm', greedy=True, compute_lengths=True)
 
         batch_size = 2
         n_sos_tokens = 1
@@ -85,7 +85,7 @@ class TestSender(unittest.TestCase):
     def test_gru_hidden_train(self, mock_gumbel):
         sender = Sender(self.vocab_size, self.max_len, self.embedding_size,
                      self.hidden_size, self.sos_id, self.eos_id, 
-                     rnn_cell='gru', greedy=True)
+                     rnn_cell='gru', greedy=True, compute_lengths=True)
 
         batch_size = 2
         n_sos_tokens = 1
@@ -149,7 +149,7 @@ class TestSender(unittest.TestCase):
     def test_lstm_not_hidden_train(self, mock_gumbel):
         sender = Sender(self.vocab_size, self.max_len, self.embedding_size,
                      self.hidden_size, self.sos_id, self.eos_id, 
-                     rnn_cell='lstm', greedy=True)
+                     rnn_cell='lstm', greedy=True, compute_lengths=True)
 
         batch_size = 1
         n_sos_tokens = 1
@@ -195,7 +195,7 @@ class TestSender(unittest.TestCase):
     def test_lstm_hidden_eval_greedy(self, mock_softmax):
         sender = Sender(self.vocab_size, self.max_len, self.embedding_size,
                      self.hidden_size, self.sos_id, self.eos_id, 
-                     rnn_cell='lstm', greedy=True)
+                     rnn_cell='lstm', greedy=True, compute_lengths=True)
 
         batch_size = 2
         n_sos_tokens = 1
@@ -244,7 +244,7 @@ class TestSender(unittest.TestCase):
     def test_lstm_hidden_eval_not_greedy(self, mock_softmax):
         sender = Sender(self.vocab_size, self.max_len, self.embedding_size,
                      self.hidden_size, self.sos_id, self.eos_id, 
-                     rnn_cell='lstm', greedy=False)
+                     rnn_cell='lstm', greedy=False, compute_lengths=True)
 
         batch_size = 2
         n_sos_tokens = 1
@@ -275,7 +275,7 @@ class TestSender(unittest.TestCase):
     def test_lstm_not_hidden_eval_greedy(self, mock_softmax):
         sender = Sender(self.vocab_size, self.max_len, self.embedding_size,
                      self.hidden_size, self.sos_id, self.eos_id, 
-                     rnn_cell='lstm', greedy=True)
+                     rnn_cell='lstm', greedy=True, compute_lengths=True)
 
         batch_size = 1
         n_sos_tokens = 1
@@ -314,7 +314,7 @@ class TestSender(unittest.TestCase):
     def test_lstm_not_hidden_eval_not_greedy(self, mock_softmax):
         sender = Sender(self.vocab_size, self.max_len, self.embedding_size,
                      self.hidden_size, self.sos_id, self.eos_id, 
-                     rnn_cell='lstm', greedy=False)
+                     rnn_cell='lstm', greedy=False, compute_lengths=True)
 
         batch_size = 1
         n_sos_tokens = 1
@@ -343,7 +343,7 @@ class TestSender(unittest.TestCase):
     def test_gru_hidden_eval_greedy(self, mock_softmax):
         sender = Sender(self.vocab_size, self.max_len, self.embedding_size,
                      self.hidden_size, self.sos_id, self.eos_id, 
-                     rnn_cell='gru', greedy=True)
+                     rnn_cell='gru', greedy=True, compute_lengths=True)
 
         batch_size = 2
         n_sos_tokens = 1
@@ -387,3 +387,16 @@ class TestSender(unittest.TestCase):
 
         self.assertEqual(seq_lengths[0], 3)
         self.assertEqual(seq_lengths[1], 6)
+
+    def test_not_compute_lengths(self):
+        sender = Sender(self.vocab_size, self.max_len, self.embedding_size,
+                     self.hidden_size, self.sos_id, self.eos_id, 
+                     rnn_cell='lstm', greedy=False, compute_lengths=False)
+
+        batch_size = 1
+        n_sos_tokens = 1
+
+        res = sender(self.tau)
+
+        self.assertEqual(res.shape[0], batch_size)
+        self.assertEqual(res.shape[1], self.max_len + n_sos_tokens)

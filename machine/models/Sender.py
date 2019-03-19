@@ -23,6 +23,8 @@ class Sender(BaseRNN):
 			eos_id (int): index of the end of sequence symbol
 			rnn_cell (str, optional): type of RNN cell (default: gru)
 			greedy (bool, optional): True if use argmax at prediction time, False if sample (default: False)
+			compute_lengths (bool, optional): True if the length of each sequence in the batch is to be computed 
+			by looking for eos tokens.
 
 		Inputs:
 			tau (float): Temperature to be used for Gumbel Softmax.
@@ -33,11 +35,12 @@ class Sender(BaseRNN):
 			output_sequence (torch.tensor): The generated decoded sequences. Shape [batch_size, output_len+1]
 			E.g. of a sequence at prediction time [sos_id, predicted_1, predicted_2,...., predicted_outputlen]
 			sequence_lengths (torch.tensor): The lengths of all the sequences in the batch. Shape [batch_size]
+			Only returned if compute_lenghts=True
 
 	"""
 
-	def __init__(self, vocab_size, output_len, embedding_size,
-				 hidden_size, sos_id, eos_id, rnn_cell='gru', greedy=False):
+	def __init__(self, vocab_size, output_len, embedding_size, hidden_size,
+				 sos_id, eos_id, rnn_cell='gru', greedy=False, compute_lengths=False):
 		super().__init__(vocab_size, output_len, hidden_size,
 						 input_dropout_p=0, dropout_p=0,
 						 n_layers=1, rnn_cell=rnn_cell, relaxed=True)
@@ -47,6 +50,7 @@ class Sender(BaseRNN):
 		self.sos_id = sos_id
 		self.eos_id = eos_id
 		self.greedy = greedy
+		self.compute_lengths = compute_lengths
 
 		self.embedding = nn.Parameter(torch.empty((self.vocab_size, self.embedding_size), dtype=torch.float32))
 		self.rnn = self.rnn_cell(self.embedding_size, self.hidden_size)
@@ -139,9 +143,10 @@ class Sender(BaseRNN):
 			output = [torch.full((batch_size, ), fill_value=self.sos_id, dtype=torch.int64, device=device)]
 
 		# Keep track of sequence lengths
-		n_sos_symbols = 1
-		initial_length = self.output_len + n_sos_symbols
-		seq_lengths = torch.ones([batch_size], dtype=torch.int64, device=device) * initial_length
+		if self.compute_lengths:
+			n_sos_symbols = 1
+			initial_length = self.output_len + n_sos_symbols
+			seq_lengths = torch.ones([batch_size], dtype=torch.int64, device=device) * initial_length
 
 		for i in range(self.output_len):
 			if self.training:
@@ -171,8 +176,15 @@ class Sender(BaseRNN):
 
 			output.append(token)
 
-			self._calculate_seq_len(
-				seq_lengths, token, initial_length, seq_pos=i+1, 
-				n_sos_symbols=n_sos_symbols, is_discrete=not self.training)
+			if self.compute_lengths:
+				self._calculate_seq_len(
+					seq_lengths, token, initial_length, seq_pos=i+1, 
+					n_sos_symbols=n_sos_symbols, is_discrete=not self.training)
 
-		return (torch.stack(output, dim=1), seq_lengths)
+
+		outputs = torch.stack(output, dim=1)
+
+		if self.compute_lengths:
+			return (outputs, seq_lengths)
+		else:
+			return outputs
