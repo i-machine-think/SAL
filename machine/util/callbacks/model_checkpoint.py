@@ -11,14 +11,19 @@ class ModelCheckpoint(Callback):
     Model checkpoint to save weights during training. 
     This callback is automatically applied for every model that
     is trained with the SupervisedTrainer.
+
+    Args:
+        save_last (optional, bool): if True, save last top_k models
+            instead of the best top_k models
     """
 
     def __init__(self, top_k=5, monitor='val',
-                 save_best_only=True):
+                 save_last=False):
         super(ModelCheckpoint, self).__init__()
         self.top_k = top_k
         self.monitor = monitor
-        self.save_best_only = save_best_only
+        self.save_last = save_last
+        self.next_index = 1
 
     def set_trainer(self, trainer):
         self.trainer = trainer
@@ -43,14 +48,18 @@ class ModelCheckpoint(Callback):
 
             max_eval_loss = max(self.loss_best)
 
-            if total_loss < max_eval_loss:
-                index_max = self.loss_best.index(max_eval_loss)
+            if total_loss < max_eval_loss or self.save_last:
+                if self.save_last:
+                    index_to_overwrite = self.next_index
+                    self.next_index = (self.next_index + 1) % self.top_k
+                else:
+                    index_to_overwrite = self.loss_best.index(max_eval_loss)
                 # rm prev model
-                if self.best_checkpoints[index_max] is not None:
+                if self.best_checkpoints[index_to_overwrite] is not None:
                     shutil.rmtree(os.path.join(
-                        self.expt_dir, self.best_checkpoints[index_max]))
-                self.best_checkpoints[index_max] = model_name
-                self.loss_best[index_max] = total_loss
+                        self.expt_dir, self.best_checkpoints[index_to_overwrite]))
+                self.best_checkpoints[index_to_overwrite] = model_name
+                self.loss_best[index_to_overwrite] = total_loss
 
                 # save model
                 Checkpoint(model=self.trainer.model,
