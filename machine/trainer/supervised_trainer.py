@@ -221,7 +221,7 @@ class SupervisedTrainer(object):
 
         callbacks = CallbackContainer(self,
                                       [Logger(),
-                                       ModelCheckpoint(top_k=top_k),
+                                       ModelCheckpoint(top_k=top_k, save_last=dev_data is None),
                                        History()] + custom_callbacks)
 
         logs = self._train_epoches(data, num_epochs,
